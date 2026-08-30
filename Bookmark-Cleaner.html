@@ -1,0 +1,2530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="NoAuthZone">
+<meta name="description" content="Clean up, de-duplicate and sort browser bookmark exports — entirely offline in your browser. By NoAuthZone.">
+<title>Bookmark Cleaner</title>
+<style>
+  :root{
+    --bg:#0b0d11;
+    --surface:#13161d;
+    --surface-2:#1a1e27;
+    --surface-3:#222734;
+    --line:#262b36;
+    --line-soft:#1c212a;
+    --text:#e9ebf1;
+    --dim:#98a0b1;
+    --faint:#616978;
+    --accent:#6bb9ff;
+    --accent-ink:#04202f;
+    --accent-soft:#1d3a52;
+    --keep:#5fd3a0;
+    --keep-soft:#16382c;
+    --warn:#f3b464;
+    --warn-soft:#3f2f1a;
+    --danger:#f0716a;
+    --danger-soft:#42221f;
+    --r-lg:14px;
+    --r-md:10px;
+    --r-sm:7px;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -22px rgba(0,0,0,.9);
+    --mono:ui-monospace,'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --topbar:61px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(900px 480px at 18% -18%, #1b2c4630, transparent 70%);}
+  button{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+  .hidden{display:none !important;}
+  .shell{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:0 24px 96px;}
+
+  /* ---------- Topbar ---------- */
+  .topbar{position:sticky;top:0;z-index:40;background:rgba(11,13,17,.86);backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft);}
+  .topbar-inner{max-width:1280px;margin:0 auto;padding:11px 24px;display:flex;align-items:center;gap:22px;}
+  .brand{display:flex;align-items:center;gap:9px;flex:none;}
+  .brand .mark{width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+  .brand h1{margin:0;font-size:14.5px;font-weight:700;letter-spacing:.01em;}
+  .brand .version{font-size:10.5px;font-family:var(--mono);color:var(--dim);background:var(--surface-2);
+    border:1px solid var(--line);border-radius:999px;padding:2px 8px;letter-spacing:0;}
+  .brand-repo{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint);
+    text-decoration:none;padding:3px 8px;border-radius:var(--r-sm);transition:color .12s,background .12s;}
+  .brand-repo svg{width:14px;height:14px;}
+  .brand-repo:hover{color:var(--accent);background:var(--surface-2);}
+  @media (max-width:900px){.brand-repo span{display:none;}}
+
+  .ratio{flex:1;max-width:300px;min-width:150px;}
+  .ratio-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px;}
+  .ratio-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700;}
+  .ratio-pct{font-size:11px;font-family:var(--mono);color:var(--danger);font-variant-numeric:tabular-nums;}
+  .ratio-bar{height:5px;border-radius:999px;background:var(--danger);overflow:hidden;}
+  .ratio-keep{height:100%;width:100%;background:var(--keep);border-radius:999px;transition:width .25s ease;}
+
+  .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+
+  /* ---------- Buttons ---------- */
+  .btn-primary{background:var(--accent);color:var(--accent-ink);font-weight:700;border:none;border-radius:var(--r-md);
+    padding:10px 16px;font-size:13px;cursor:pointer;transition:filter .12s,transform .12s;white-space:nowrap;}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:active{transform:scale(.985);}
+  .btn-secondary{background:none;border:1px solid var(--line);color:var(--dim);border-radius:var(--r-md);
+    padding:9px 14px;font-size:13px;cursor:pointer;font-weight:600;transition:color .12s,border-color .12s;white-space:nowrap;}
+  .btn-secondary:hover{color:var(--text);border-color:var(--accent-soft);}
+  .mini-btn{background:var(--surface-2);border:1px solid var(--line);color:var(--dim);font-size:12px;padding:7px 12px;
+    border-radius:var(--r-sm);cursor:pointer;font-weight:600;transition:all .12s;}
+  .mini-btn:hover{border-color:var(--accent-soft);color:var(--text);background:var(--surface-3);}
+  .mini-btn:disabled{opacity:.5;cursor:default;}
+  .mini-btn.active-toggle{border-color:var(--accent);color:var(--accent-ink);background:var(--accent);}
+  .mini-btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* ---------- Landing ---------- */
+  .landing{padding-top:40px;max-width:760px;margin:0 auto;}
+  .landing-lede{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0 0 8px;}
+  .landing-sub{color:var(--dim);margin:0 0 26px;font-size:14.5px;max-width:56ch;}
+  .dropzone{border:1.5px dashed var(--line);border-radius:var(--r-lg);padding:52px 24px;text-align:center;cursor:pointer;
+    background:var(--surface);transition:border-color .15s,background .15s;}
+  .dropzone:hover{border-color:var(--accent-soft);background:var(--surface-2);}
+  .dropzone.drag{border-color:var(--accent);background:var(--surface-2);}
+  .dropzone .icon{display:none;}
+  .dropzone h2{font-size:16px;margin:0 0 6px;font-weight:700;}
+  .dropzone p{color:var(--dim);font-size:13.5px;margin:4px 0;}
+  .dropzone .path{font-family:var(--mono);color:var(--accent);font-size:12px;margin-top:12px;opacity:.85;}
+  .error-msg{color:var(--danger);font-size:13px;margin-top:14px;font-family:var(--mono);}
+
+  .howto{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--shadow);overflow:hidden;}
+  .howto > summary{list-style:none;cursor:pointer;padding:15px 20px;font-size:13.5px;font-weight:600;color:var(--text);
+    display:flex;align-items:center;gap:9px;}
+  .howto > summary::-webkit-details-marker{display:none;}
+  .howto > summary::before{content:'▸';color:var(--faint);font-size:10px;transition:transform .15s;}
+  .howto[open] > summary::before{transform:rotate(90deg);}
+  .howto-body{padding:0 20px 20px;font-size:13px;color:var(--dim);line-height:1.65;}
+  .howto b{color:var(--text);font-weight:700;}
+  .howto code{font-family:var(--mono);background:var(--surface-2);padding:2px 6px;border-radius:5px;color:var(--accent);font-size:.9em;}
+  .browser-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;}
+  .browser-tab{background:var(--surface-2);border:1px solid var(--line);color:var(--dim);font-size:12px;padding:6px 12px;
+    border-radius:999px;cursor:pointer;font-weight:500;transition:all .12s;}
+  .browser-tab:hover{color:var(--text);border-color:var(--accent-soft);}
+  .browser-tab.active{border-color:var(--accent);color:var(--accent-ink);background:var(--accent);font-weight:700;}
+  .browser-steps{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media (max-width:640px){.browser-steps{grid-template-columns:1fr;}}
+  .browser-steps ol{margin:0;padding-left:18px;}
+  .browser-steps li{margin-bottom:4px;}
+  .browser-steps .step-group b{display:block;color:var(--text);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.06em;margin-bottom:7px;font-weight:700;}
+  .privacy-note{margin-top:16px;font-size:12.5px;color:var(--faint);line-height:1.6;}
+
+  /* ---------- Tab bar ---------- */
+  .tabbar{position:sticky;top:var(--topbar);z-index:30;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    padding:12px 0 0;margin-bottom:20px;background:linear-gradient(var(--bg) 70%, transparent);}
+  .tabs{display:flex;gap:3px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:3px;}
+  .tab{background:none;border:none;color:var(--dim);font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--r-sm);
+    cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .12s,color .12s;white-space:nowrap;}
+  .tab:hover{color:var(--text);}
+  .tab[aria-selected="true"]{background:var(--surface-3);color:var(--text);}
+  .tab-badge{font-family:var(--mono);font-size:10.5px;background:var(--surface-3);color:var(--dim);padding:2px 6px;
+    border-radius:999px;font-variant-numeric:tabular-nums;}
+  .tab[aria-selected="true"] .tab-badge{background:var(--accent-soft);color:var(--accent);}
+  .tab-badge.warn{background:var(--warn-soft);color:var(--warn);}
+
+  .chips{margin-left:auto;display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r-md);
+    overflow:hidden;background:var(--surface);}
+  .chips div{padding:7px 16px;border-right:1px solid var(--line-soft);text-align:center;min-width:78px;}
+  .chips div:last-child{border-right:none;}
+  .chips .num{display:block;font-size:16px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2;}
+  .chips .num.warn{color:var(--warn);}
+  .chips .lbl{display:block;font-size:9.5px;color:var(--faint);letter-spacing:.07em;text-transform:uppercase;
+    margin-top:2px;font-weight:700;}
+
+  /* ---------- Panels ---------- */
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;box-shadow:var(--shadow);}
+  .panel + .panel{margin-top:18px;}
+  .panel h3{margin:0;font-size:13.5px;font-weight:700;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  .panel-sub{font-size:12.5px;color:var(--faint);margin:0 0 14px;line-height:1.55;}
+  .split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;}
+  @media (max-width:940px){.split{grid-template-columns:minmax(0,1fr);}}
+  .sidebar{position:sticky;top:calc(var(--topbar) + 62px);display:flex;flex-direction:column;gap:14px;}
+  @media (max-width:940px){.sidebar{position:static;}}
+
+  .note{border:1px solid var(--line-soft);background:var(--surface-2);border-radius:var(--r-md);margin-bottom:14px;}
+  .note > summary{list-style:none;cursor:pointer;padding:9px 13px;font-size:12px;color:var(--dim);font-weight:600;
+    display:flex;align-items:center;gap:8px;}
+  .note > summary::-webkit-details-marker{display:none;}
+  .note > summary::before{content:'?';display:grid;place-items:center;width:15px;height:15px;border-radius:50%;
+    background:var(--surface-3);color:var(--faint);font-size:10px;font-weight:700;flex:none;}
+  .note-body{padding:0 13px 12px 36px;font-size:12.5px;color:var(--faint);line-height:1.6;}
+  .note-body p{margin:0 0 7px;}
+  .note-body p:last-child{margin-bottom:0;}
+
+  /* ---------- Tree ---------- */
+  .tree-tools{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .search-input{flex:1;min-width:180px;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:var(--r-sm);padding:9px 12px;font-size:13px;font-family:var(--sans);transition:border-color .12s;}
+  .search-input::placeholder{color:var(--faint);}
+  .search-input:focus{outline:none;border-color:var(--accent);}
+  .check-inline{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);white-space:nowrap;cursor:pointer;
+    font-weight:500;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 11px;}
+  .check-inline:hover{color:var(--text);border-color:var(--accent-soft);}
+  .check-inline input{accent-color:var(--accent);cursor:pointer;margin:0;}
+
+  .tree{max-height:min(66vh,720px);overflow:auto;font-size:13.5px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;
+    margin:0 -6px;padding:0 6px;}
+  .tree::-webkit-scrollbar{width:9px;}
+  .tree::-webkit-scrollbar-track{background:transparent;}
+  .tree::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;}
+  .tree::-webkit-scrollbar-thumb:hover{background:var(--accent-soft);}
+  .node{position:relative;}
+  .row{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:var(--r-sm);min-height:36px;}
+  .row:hover{background:var(--surface-2);}
+  .row.menu-open{background:var(--surface-3);}
+  .folder-row{cursor:default;}
+  .twisty{width:22px;height:22px;flex:none;display:grid;place-items:center;color:var(--dim);cursor:pointer;
+    background:none;border:none;padding:0;border-radius:5px;transition:transform .15s,color .12s,background .12s;}
+  .twisty svg{width:15px;height:15px;display:block;}
+  .twisty:hover{color:var(--text);background:var(--surface-3);}
+  .twisty.open{transform:rotate(90deg);}
+  .folder-row input[type=checkbox]{accent-color:var(--accent);cursor:pointer;flex:none;width:17px;height:17px;margin:0;}
+  .folder-icon{flex:none;display:grid;place-items:center;color:var(--faint);}
+  .folder-icon svg{width:17px;height:17px;display:block;}
+  .row:hover .folder-icon,.folder-row:has(input:checked) .folder-icon{color:var(--accent);}
+  .folder-title{font-weight:600;color:var(--text);font-size:14px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:44%;}
+  .folder-count{color:var(--dim);font-size:11px;font-family:var(--mono);background:var(--surface-2);
+    padding:2px 8px;border-radius:999px;flex:none;font-variant-numeric:tabular-nums;}
+  .folder-actions{margin-left:auto;flex:none;display:flex;align-items:center;gap:12px;}
+  .dedupe-mode-select{background:var(--surface-2);color:var(--dim);border:1px solid var(--line);border-radius:var(--r-sm);
+    font-size:12px;font-family:var(--sans);padding:5px 8px;cursor:pointer;font-weight:600;transition:all .12s;}
+  .row:hover .dedupe-mode-select{background:var(--surface-3);}
+  .dedupe-mode-select:hover,.dedupe-mode-select:focus{color:var(--text);border-color:var(--accent-soft);}
+  .children{margin-left:19px;border-left:1px solid var(--line-soft);padding-left:9px;}
+  .children > .node{content-visibility:auto;contain-intrinsic-size:auto 32px;}
+  .bm-row{padding-left:22px;gap:10px;}
+  .bm-dot{width:6px;height:6px;border-radius:50%;background:var(--surface-3);border:1.5px solid var(--faint);flex:none;}
+  .row:hover .bm-dot{border-color:var(--accent);}
+  /* The date sits flush right; the control before it has a fixed column width,
+     so dates and controls line up across folder and bookmark rows. */
+  .row-date{font-family:var(--mono);font-size:11px;color:var(--faint);flex:none;width:88px;text-align:right;
+    font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+  .row-tail{width:122px;flex:none;display:flex;justify-content:flex-end;align-items:center;}
+  .row-tail .dedupe-mode-select{width:100%;}
+  @media (max-width:820px){.row-tail{width:auto;}.row-tail .dedupe-mode-select{width:auto;}}
+  .row-date.no-date{opacity:.4;}
+  .row-date .age{color:var(--warn);font-weight:700;}
+  .row-date.is-old{color:var(--warn);}
+  .row.will-remove .row-date{opacity:.5;}
+  .bm-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:80px;max-width:44%;color:var(--text);}
+  .bm-url{font-family:var(--mono);color:var(--faint);font-size:10.5px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;flex:1 1 40%;min-width:0;}
+  .bm-actions{margin-left:auto;flex:none;display:flex;align-items:center;gap:12px;}
+  .tag{font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;flex:none;letter-spacing:.01em;white-space:nowrap;}
+  .tag-keep{background:var(--keep-soft);color:var(--keep);}
+  .tag-remove{background:var(--danger-soft);color:var(--danger);}
+  .tag-protected{background:var(--warn-soft);color:var(--warn);}
+  .tag-dead{background:var(--danger-soft);color:var(--danger);}
+  .tag-checking{background:var(--surface-3);color:var(--dim);}
+  .tag-old{background:var(--warn-soft);color:var(--warn);}
+  .tag-clickable{border:none;cursor:pointer;font:inherit;font-weight:700;}
+  .tag-clickable:hover{filter:brightness(1.25);}
+  .row.will-remove .bm-title{text-decoration:line-through;color:var(--faint);}
+  .bm-more-btn{background:none;border:1px solid transparent;color:var(--faint);cursor:pointer;flex:none;
+    width:26px;height:26px;display:grid;place-items:center;border-radius:6px;padding:0;transition:all .12s;}
+  .bm-more-btn svg{width:15px;height:15px;display:block;}
+  .row:hover .bm-more-btn{color:var(--dim);border-color:var(--line);}
+  .bm-more-btn:hover{color:var(--accent);border-color:var(--accent-soft);background:var(--surface-3);}
+  .bm-more-btn.active{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
+  .bm-menu{display:grid;gap:10px;margin:2px 0 12px 36px;padding:14px;max-width:680px;
+    background:var(--surface-2);border:1px solid var(--accent-soft);border-radius:var(--r-md);}
+  .bm-menu-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);font-weight:700;}
+  .bm-field{display:grid;gap:5px;}
+  .bm-field > span{font-size:11px;color:var(--faint);font-weight:600;}
+  .bm-menu-input{width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);
+    border-radius:var(--r-sm);padding:8px 10px;font-size:12.5px;font-family:var(--sans);}
+  .bm-menu-input:focus{outline:none;border-color:var(--accent);}
+  .bm-menu-input.is-url{font-family:var(--mono);font-size:11.5px;}
+  .bm-menu-input.invalid{border-color:var(--danger);}
+  .bm-menu-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .bm-menu-foot .dedupe-mode-select{background:var(--surface);padding:7px 9px;}
+  .bm-menu-hint{font-size:11px;color:var(--faint);margin-left:auto;font-family:var(--mono);}
+  /* Selection mode is deliberately amber so it is never confused with the blue
+     folder checkboxes, which mean "this folder gets cleaned". */
+  .sel-box{width:16px;height:16px;accent-color:var(--warn);cursor:pointer;flex:none;margin:0;}
+  .sel-spacer{width:22px;flex:none;}
+  .tree.select-mode .bm-row{padding-left:8px;}
+  .row.selected{background:rgba(243,180,100,.10);box-shadow:inset 2px 0 0 var(--warn);}
+  .row.selected:hover{background:rgba(243,180,100,.16);}
+  .sel-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;
+    background:var(--warn-soft);border:1px solid rgba(243,180,100,.35);border-radius:var(--r-md);}
+  .sel-bar .sel-count{font-weight:700;color:var(--warn);font-size:12.5px;font-variant-numeric:tabular-nums;}
+  .sel-bar select{min-width:190px;background:var(--surface);}
+  .sel-bar .sel-hint{font-size:11.5px;color:var(--dim);margin-left:auto;}
+  @media (max-width:620px){.sel-bar .sel-hint{display:none;}}
+
+  .no-results,.no-dups{color:var(--faint);font-size:13px;text-align:center;padding:30px 12px;line-height:1.6;}
+
+  /* ---------- Options sidebar ---------- */
+  .opt-group{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 18px;
+    box-shadow:var(--shadow);}
+  .opt-group > h4{margin:0 0 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);font-weight:700;}
+  .opt-row{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-soft);}
+  .opt-row:last-child{border-bottom:none;padding-bottom:0;}
+  .opt-row input[type=checkbox]{margin-top:2px;accent-color:var(--accent);cursor:pointer;width:15px;height:15px;flex:none;}
+  .opt-row label{cursor:pointer;font-size:13px;font-weight:600;color:var(--text);}
+  .opt-row .sub{display:block;color:var(--faint);font-size:11.5px;margin-top:3px;line-height:1.5;font-weight:400;}
+  .opt-row.disabled label{color:var(--faint);}
+  .opt-block{display:block;}
+  .opt-block > label{display:block;margin-bottom:6px;}
+  .full-select{width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:9px 10px;font-size:13px;font-family:var(--sans);cursor:pointer;}
+  .full-select:hover{border-color:var(--accent-soft);}
+  input.full-select,textarea.full-select{cursor:text;}
+  textarea.full-select{resize:vertical;min-height:70px;line-height:1.55;font-family:var(--mono);font-size:12px;}
+  textarea.full-select::placeholder{line-height:1.55;}
+  input.full-select:focus,textarea.full-select:focus{outline:none;border-color:var(--accent);}
+  input.full-select::placeholder,textarea.full-select::placeholder{color:var(--faint);}
+  .collect-list{display:grid;gap:3px;margin-top:7px;}
+  .collect-list div{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--dim);
+    font-family:var(--mono);}
+  .collect-list b{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;}
+  .collect-list div.zero{color:var(--faint);}
+  .collect-list div.zero b{color:var(--faint);}
+  .date-range{display:flex;gap:8px;align-items:center;}
+  .date-range input{flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:8px;}
+  .date-range span{font-size:11.5px;color:var(--faint);flex:none;}
+  .date-range input::-webkit-calendar-picker-indicator{filter:invert(.7);cursor:pointer;}
+  .link-progress{display:flex;align-items:center;gap:10px;font-size:11px;font-family:var(--mono);color:var(--dim);margin-top:9px;}
+  .link-progress-bar{flex:1;height:5px;background:var(--surface-3);border-radius:3px;overflow:hidden;}
+  .link-progress-fill{height:100%;width:0%;background:var(--accent);transition:width .15s;border-radius:3px;}
+
+  /* ---------- Stats / insights ---------- */
+  .insight-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;}
+  @media (max-width:860px){.insight-grid{grid-template-columns:minmax(0,1fr);}}
+  .stat-line{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;padding:9px 0;
+    color:var(--dim);border-bottom:1px solid var(--line-soft);}
+  .stat-line:last-child{border-bottom:none;}
+  .stat-line b{color:var(--text);font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums;}
+  .stat-line b.warn{color:var(--warn);}
+  .file-compare-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12.5px;padding:7px 0;
+    color:var(--dim);border-bottom:1px solid var(--line-soft);}
+  .file-compare-row:last-child{border-bottom:none;}
+  .file-compare-row b{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--warn);background:var(--warn-soft);padding:2px 8px;border-radius:999px;flex:none;}
+  .domain-row{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:6px 0;color:var(--dim);}
+  .domain-row .domain-name{flex:0 1 40%;font-family:var(--mono);color:var(--text);overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;font-size:12px;}
+  .domain-bar{height:5px;background:linear-gradient(90deg,var(--accent),var(--accent-soft));border-radius:3px;}
+  .domain-count{font-family:var(--mono);color:var(--dim);width:34px;text-align:right;flex:none;
+    font-variant-numeric:tabular-nums;}
+  .scroll-box{max-height:420px;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;margin-top:6px;}
+  .scroll-box::-webkit-scrollbar{width:9px;}
+  .scroll-box::-webkit-scrollbar-track{background:transparent;}
+  .scroll-box::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;}
+
+  /* ---------- Duplicates ---------- */
+  .dup-groups{max-height:min(70vh,760px);overflow:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  .dup-groups::-webkit-scrollbar{width:9px;}
+  .dup-groups::-webkit-scrollbar-track{background:transparent;}
+  .dup-groups::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;}
+  .dup-group{border:1px solid var(--line-soft);border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px;
+    background:var(--surface-2);}
+  .dup-url{font-family:var(--mono);font-size:11.5px;color:var(--text);word-break:break-all;margin-bottom:8px;}
+  .dup-occ{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--dim);padding:4px 0;}
+  .dup-path{font-family:var(--mono);font-size:10.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;}
+
+  /* ---------- File comparison ---------- */
+  .file-compare-cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .file-compare-card{flex:1;min-width:150px;background:var(--surface-2);border:1px solid var(--line-soft);
+    border-radius:var(--r-md);padding:16px;text-align:center;}
+  .file-compare-card .fc-name{font-size:12px;color:var(--dim);font-family:var(--mono);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;margin-bottom:10px;font-weight:600;}
+  .file-compare-card .fc-num{font-size:22px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;}
+  .file-compare-card .fc-lbl{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.07em;
+    margin-bottom:10px;font-weight:700;}
+  .compare-table-wrap{overflow-x:auto;max-width:100%;}
+  .compare-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;}
+  .compare-table th{text-align:left;color:var(--dim);font-weight:700;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid var(--line);word-break:break-word;}
+  .compare-table td{padding:8px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;
+    word-break:break-word;overflow-wrap:anywhere;}
+  .compare-table td.cmp-url{font-family:var(--mono);color:var(--dim);word-break:break-all;font-size:10.5px;}
+  .compare-table td.cmp-empty{color:var(--faint);text-align:center;}
+  .compare-table th:first-child,.compare-table td.cmp-url{width:22%;}
+  .folder-group-section{margin-bottom:24px;}
+  .folder-group-section:last-child{margin-bottom:0;}
+  .folder-group-heading{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;
+    margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+  .fg-title{font-size:13px;font-weight:700;color:var(--text);}
+  .fg-counts{font-size:11px;font-family:var(--mono);color:var(--dim);}
+  .diff-grid{display:grid;gap:12px;}
+  .diff-col{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:10px;min-width:0;}
+  .diff-col-head{font-size:11px;font-family:var(--mono);color:var(--dim);margin-bottom:8px;padding-bottom:6px;
+    border-bottom:1px solid var(--line-soft);font-weight:600;}
+  .diff-row{padding:5px 0;border-bottom:1px dotted var(--line-soft);}
+  .diff-row:last-child{border-bottom:none;}
+  .diff-url{display:block;font-family:var(--mono);color:var(--faint);font-size:10px;word-break:break-all;margin-top:2px;}
+  .cmp-cell{display:flex;flex-direction:column;gap:4px;align-items:flex-start;margin-bottom:6px;}
+  .cmp-cell:last-child{margin-bottom:0;}
+  .cmp-title{color:var(--text);word-break:break-word;line-height:1.35;font-size:12px;}
+
+  /* ---------- Footer ---------- */
+  .site-foot{margin-top:46px;padding-top:18px;border-top:1px solid var(--line-soft);display:flex;gap:16px;
+    flex-wrap:wrap;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--faint);}
+  .site-foot a{color:var(--dim);text-decoration:none;display:inline-flex;align-items:center;gap:7px;
+    border-bottom:1px solid transparent;}
+  .site-foot a:hover{color:var(--accent);border-color:var(--accent-soft);}
+  .site-foot svg{width:15px;height:15px;flex:none;}
+  .site-foot b{color:var(--dim);font-weight:700;}
+
+  /* ---------- Toast ---------- */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:60;
+    background:var(--surface-3);border:1px solid var(--line);color:var(--text);font-size:13px;font-weight:600;
+    padding:12px 18px;border-radius:var(--r-md);box-shadow:var(--shadow);opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;max-width:min(560px,90vw);text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms !important;animation-duration:.01ms !important;}}
+  @media (max-width:720px){
+    .row-date{display:none;}
+    .shell{padding:0 14px 80px;}
+    .topbar-inner{padding:10px 14px;gap:12px;}
+    .ratio{display:none;}
+    .chips{margin-left:0;width:100%;}
+    .chips div{flex:1;min-width:0;padding:7px 6px;}
+    .brand .version{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>Bookmark Cleaner</h1>
+      <span class="version" id="appVersion">v1.0.0</span>
+      <a class="brand-repo" href="https://github.com/NoAuthZone/Bookmarks-cleaner" target="_blank" rel="noopener noreferrer"
+         title="NoAuthZone on GitHub — source code and issues"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.34c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0z"/></svg><span>NoAuthZone</span></a>
+    </div>
+
+    <div class="ratio hidden" id="ratioWrap" title="Green = kept, red = removed">
+      <div class="ratio-head">
+        <span class="ratio-label">After cleanup</span>
+        <span class="ratio-pct" id="ratioPct">0 % removed</span>
+      </div>
+      <div class="ratio-bar"><div class="ratio-keep" id="ratioKeep"></div></div>
+    </div>
+
+    <div class="topbar-actions hidden" id="topActions">
+      <button class="btn-secondary" id="btnReset">New file</button>
+      <button class="btn-primary" id="btnExport">Download cleaned HTML</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <div class="landing" id="landing">
+    <h2 class="landing-lede">Clean up your bookmarks before you re-import them.</h2>
+    <p class="landing-sub">Drop in an HTML export from any browser. You pick the folders, decide what counts as a duplicate, and get a cleaned file back — nothing is uploaded, nothing in your browser is touched.</p>
+
+    <div id="dropzone" class="dropzone">
+      <div class="icon">[ ]</div>
+      <h2>Drop your bookmarks export here</h2>
+      <p>or click to pick one or more files — works with the HTML export from any browser</p>
+      <p class="path">bookmarks.html</p>
+      <div class="error-msg hidden" id="errorMsg"></div>
+    </div>
+
+    <details class="howto" open>
+      <summary>How to get the file out of your browser — and back in</summary>
+      <div class="howto-body">
+        <div class="browser-tabs" id="browserTabs">
+          <button class="browser-tab active" data-b="firefox">Firefox</button>
+          <button class="browser-tab" data-b="chrome">Chrome</button>
+          <button class="browser-tab" data-b="edge">Edge</button>
+          <button class="browser-tab" data-b="brave">Brave</button>
+          <button class="browser-tab" data-b="tor">Tor Browser</button>
+          <button class="browser-tab" data-b="other">Opera / Vivaldi / other</button>
+        </div>
+        <div class="browser-steps" id="browserSteps"></div>
+        <p class="privacy-note">All of these browsers use the same universal HTML format. This page never changes anything in your browser directly — you decide when the cleaned version gets adopted, by importing it.</p>
+      </div>
+    </details>
+  </div>
+
+  <input type="file" id="fileInput" accept=".html,.htm" multiple hidden>
+
+  <div class="workspace hidden" id="workspace">
+
+    <div class="tabbar">
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button class="tab" role="tab" aria-selected="true" data-tab="clean">Clean up</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="dupes">Duplicates <span class="tab-badge" id="tabBadgeDupes">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="insights">Insights</button>
+        <button class="tab hidden" role="tab" aria-selected="false" data-tab="compare" id="tabCompare">File comparison</button>
+      </div>
+      <div class="chips">
+        <div><span class="num" id="statTotal">0</span><span class="lbl">Bookmarks</span></div>
+        <div><span class="num" id="statFolders">0</span><span class="lbl">Folders</span></div>
+        <div><span class="num warn" id="statDups">0</span><span class="lbl">Dup. groups</span></div>
+        <div><span class="num warn" id="statRemove">0</span><span class="lbl">Removed</span></div>
+      </div>
+    </div>
+
+    <!-- ============ Tab: Clean up ============ -->
+    <section class="tabpanel" data-panel="clean">
+      <div class="split">
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Folders</h3>
+            <div class="mini-btn-row">
+              <button class="mini-btn" id="btnExpand" title="Open every folder">Expand</button>
+              <button class="mini-btn" id="btnCollapse" title="Close every folder">Collapse</button>
+              <button class="mini-btn" id="btnAll">Select all</button>
+              <button class="mini-btn" id="btnNone">Select none</button>
+            </div>
+          </div>
+          <p class="panel-sub">Checked folders get cleaned and sorted. Unchecked ones stay exactly as they are.</p>
+
+          <details class="note">
+            <summary>How selection and the per-folder mode work</summary>
+            <div class="note-body">
+              <p>Clicking a folder applies the selection to all of its subfolders — you can set individual ones differently afterwards.</p>
+              <p>The dropdown on the right of each folder sets what duplicates are compared against in that folder, direct entries only, no subfolders. The default for all folders lives under <b>Duplicates</b> in the options.</p>
+              <p>Click the tag on a duplicate to keep that specific copy anyway.</p>
+              <p><b>Select &amp; move</b> adds a second, amber checkbox to every row. Tick as many bookmarks or folders as you like and move them together — a folder always takes its contents with it.</p>
+            </div>
+          </details>
+
+          <div class="tree-tools">
+            <input type="text" id="searchInput" placeholder="Search title or URL…" class="search-input">
+            <label class="check-inline"><input type="checkbox" id="failedOnlyToggle"> Unreachable only</label>
+            <label class="check-inline"><input type="checkbox" id="ageOnlyToggle"> Old only</label>
+            <button class="mini-btn" id="btnSelectMode" title="Pick several entries and move them together">Select &amp; move</button>
+          </div>
+
+          <div class="sel-bar hidden" id="selBar">
+            <span class="sel-count" id="selCount">0 selected</span>
+            <select id="selMoveTarget" class="dedupe-mode-select"></select>
+            <button class="mini-btn" id="btnSelVisible">All shown bookmarks</button>
+            <button class="mini-btn" id="btnSelClear">Clear</button>
+            <span class="sel-hint">Shift-click selects a range. A folder takes its contents along.</span>
+          </div>
+
+          <div class="tree" id="tree"></div>
+        </div>
+
+        <aside class="sidebar">
+
+          <div class="opt-group">
+            <h4>Duplicates</h4>
+            <div class="opt-row opt-block">
+              <label for="globalDedupeMode">Compare by</label>
+              <select id="globalDedupeMode" class="full-select">
+                <option value="off">Nothing — keep all</option>
+                <option value="url" selected>URL</option>
+                <option value="title">Title</option>
+                <option value="both">Title and URL</option>
+              </select>
+              <span class="sub">Sets every folder at once. Individual folders can still differ.</span>
+            </div>
+            <div class="opt-row">
+              <input type="checkbox" id="optNormalize" checked>
+              <div><label for="optNormalize">Match similar URLs</label>
+              <span class="sub">Ignores http/https, a leading “www.” and a trailing slash when comparing.</span></div>
+            </div>
+          </div>
+
+          <div class="opt-group">
+            <h4>Order</h4>
+            <div class="opt-row opt-block">
+              <label for="sortModeSelect">Sort selected folders by</label>
+              <select id="sortModeSelect" class="full-select">
+                <option value="off">Keep original order</option>
+                <option value="title" selected>Title A–Z</option>
+                <option value="newest">Date — newest first</option>
+                <option value="oldest">Date — oldest first</option>
+              </select>
+              <span class="sub">Applies inside each selected folder, in the tree and in the export. Date means the last change, or when the bookmark was added.</span>
+            </div>
+            <div class="opt-row" id="optFoldersFirstRow">
+              <input type="checkbox" id="optFoldersFirst" checked>
+              <div><label for="optFoldersFirst">Subfolders before bookmarks</label></div>
+            </div>
+            <div class="opt-row">
+              <input type="checkbox" id="optDropEmpty" checked>
+              <div><label for="optDropEmpty">Drop empty folders on export</label>
+              <span class="sub">Folders left without any bookmarks after cleanup.</span></div>
+            </div>
+          </div>
+
+          <div class="opt-group">
+            <h4>Date &amp; age</h4>
+            <div class="opt-row opt-block">
+              <label>Only show entries dated</label>
+              <div class="date-range">
+                <input type="date" id="dateFrom" class="full-select" aria-label="From date">
+                <span>to</span>
+                <input type="date" id="dateTo" class="full-select" aria-label="To date">
+              </div>
+              <div class="mini-btn-row" style="margin-top:8px;">
+                <button class="mini-btn" id="btnDateClear" style="flex:1;">Clear range</button>
+                <label class="check-inline" style="flex:1;justify-content:center;"><input type="checkbox" id="dateKeepUndated"> Keep undated</label>
+              </div>
+              <span class="sub" id="dateFilterHint">Filters the tree only — nothing is removed by it. Entries without a date are hidden while a range is set.</span>
+            </div>
+            <div class="opt-row opt-block">
+              <label for="ageFilterSelect">Mark by age</label>
+              <select id="ageFilterSelect" class="full-select">
+                <option value="0">Off</option>
+                <option value="1">Older than 1 year</option>
+                <option value="2">Older than 2 years</option>
+                <option value="5">Older than 5 years</option>
+              </select>
+              <span class="sub">Uses the date shown in the tree — last change where the export has one, otherwise the date added.</span>
+            </div>
+            <div class="opt-row opt-block">
+              <button class="mini-btn" id="btnCheckLinks" style="width:100%;">Check links</button>
+              <div class="link-progress hidden" id="linkProgress">
+                <div class="link-progress-bar"><div class="link-progress-fill" id="linkProgressFill"></div></div>
+                <span id="linkProgressText">0 / 0</span>
+              </div>
+              <span class="sub">Catches network errors only. Browsers block the real status code (CORS), so “unreachable” means the request failed — not that the page is gone.</span>
+            </div>
+          </div>
+
+          <div class="opt-group">
+            <h4>Collect into a new folder</h4>
+            <div class="opt-row opt-block">
+              <label for="collectRule">Pick entries</label>
+              <select id="collectRule" class="full-select">
+                <option value="keywords">By keyword in title or link</option>
+                <option value="unique">Links that appear only once</option>
+                <option value="repeated">Links that appear more than once</option>
+                <option value="old">Older than the age filter</option>
+                <option value="dead">Unreachable links</option>
+              </select>
+            </div>
+            <div class="opt-row opt-block" id="collectKeywordsRow">
+              <label for="collectKeywords">Keywords — one folder per line</label>
+              <textarea id="collectKeywords" class="full-select" rows="3" spellcheck="false"
+                placeholder="Karriere: karriere, jobs, bewerbung&#10;Rezepte: rezept, kochen, backen&#10;python"></textarea>
+              <span class="sub">One line makes one folder. <b>Name: term, term</b> sets the folder name, a bare list takes its name from the first term. An entry lands in the first line it matches.</span>
+            </div>
+            <div class="opt-row" id="collectPerKeywordRow">
+              <input type="checkbox" id="collectPerKeyword">
+              <div><label for="collectPerKeyword">One folder per keyword</label>
+              <span class="sub">Splits an unnamed line so every term gets its own folder.</span></div>
+            </div>
+            <div class="opt-row opt-block" id="collectNameRow">
+              <label for="collectName">Folder name</label>
+              <input type="text" id="collectName" class="full-select" placeholder="Jobs" spellcheck="false">
+            </div>
+            <div class="opt-row opt-block">
+              <label for="collectParent">Create inside</label>
+              <select id="collectParent" class="full-select"></select>
+            </div>
+            <div class="opt-row">
+              <input type="checkbox" id="collectCopy">
+              <div><label for="collectCopy">Copy instead of move</label>
+              <span class="sub">Off, entries are relocated. On, they stay put and appear twice — the duplicate check will then flag them.</span></div>
+            </div>
+            <div class="opt-row opt-block">
+              <button class="mini-btn" id="btnCollect" style="width:100%;">Create folders</button>
+              <span class="sub" id="collectPreview">No file loaded yet.</span>
+            </div>
+          </div>
+
+          <div class="opt-group">
+            <h4>Other exports</h4>
+            <div class="opt-row opt-block">
+              <div class="mini-btn-row">
+                <button class="mini-btn" id="btnExportCsv" style="flex:1;">CSV</button>
+                <button class="mini-btn" id="btnExportJson" style="flex:1;">JSON</button>
+              </div>
+              <span class="sub">Flat list of everything that survives the cleanup. Only the HTML file can be imported back into a browser.</span>
+            </div>
+          </div>
+
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ Tab: Duplicates ============ -->
+    <section class="tabpanel hidden" data-panel="dupes">
+      <div class="panel">
+        <div class="panel-head"><h3>Duplicate groups</h3></div>
+        <p class="panel-sub">Grouped per folder. The first entry stays; click a tag to keep another copy instead.</p>
+        <div class="dup-groups" id="dupGroups"><div class="no-dups">No file loaded yet.</div></div>
+      </div>
+    </section>
+
+    <!-- ============ Tab: Insights ============ -->
+    <section class="tabpanel hidden" data-panel="insights">
+      <div class="insight-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>Overview</h3></div>
+          <div class="stat-line"><span>Total bookmarks</span><b id="ovTotal">0</b></div>
+          <div class="stat-line"><span>Total folders</span><b id="ovFolders">0</b></div>
+          <div class="stat-line"><span>Selected folders</span><b id="statSelFolders">0 / 0</b></div>
+          <div class="stat-line"><span>Distinct links</span><b id="statDistinctUrls">0</b></div>
+          <div class="stat-line"><span>Links that appear only once</span><b id="statUniqueUrls">0</b></div>
+          <div class="stat-line"><span>Links with more than one copy</span><b class="warn" id="statRepeatedUrls">0</b></div>
+          <div class="stat-line"><span>Duplicate groups (per folder)</span><b class="warn" id="statDupGroups">0</b></div>
+          <div class="stat-line"><span>Will be removed</span><b class="warn" id="statWillRemove">0</b></div>
+          <div class="stat-line"><span>Remaining after cleanup</span><b id="statRemaining">0</b></div>
+          <div class="stat-line"><span>Percent removed</span><b class="warn" id="statRemovePct">0 %</b></div>
+          <div class="stat-line"><span>Empty folders</span><b class="warn" id="statEmptyFolders">0</b></div>
+          <div class="stat-line"><span>Unreachable links</span><b class="warn" id="statDeadLinks">0</b></div>
+          <div class="stat-line"><span>Marked as old</span><b class="warn" id="statOldMarked">0</b></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Top domains</h3></div>
+          <p class="panel-sub">Where your bookmarks actually point, most frequent first.</p>
+          <div class="scroll-box" id="domainStats"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Empty folders</h3></div>
+        <p class="panel-sub">Nothing left in these after cleanup. They are dropped from the export while that option is on.</p>
+        <div class="scroll-box" id="emptyFoldersList" style="max-height:300px;"></div>
+      </div>
+    </section>
+
+    <!-- ============ Tab: File comparison ============ -->
+    <section class="tabpanel hidden" data-panel="compare">
+      <div class="panel" id="fileCompareSection">
+        <div class="panel-head">
+          <h3>File comparison</h3>
+          <button class="mini-btn" id="btnCompareToggle">Show differences only</button>
+        </div>
+        <p class="panel-sub">Folders with the same name are matched up across files. Overlaps are only looked for inside a matching folder name, not across the whole file.</p>
+        <div id="fileCompareStats"></div>
+        <div class="dup-groups" id="fileCompareDupes"></div>
+      </div>
+    </section>
+
+  </div>
+  <footer class="site-foot">
+    <span>Bookmark Cleaner <b id="appVersionFoot">v1.0.0</b> — built by <b>NoAuthZone</b>. Runs entirely offline; nothing leaves this page.</span>
+    <a href="https://github.com/NoAuthZone/Bookmarks-cleaner" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.34c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0z"/></svg>
+      github.com/NoAuthZone/Bookmarks-cleaner
+    </a>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  let idSeq = 0;
+  const nextId = () => 'n' + (++idSeq);
+
+  let tree = [];
+  const opts = { normalize:true, sortMode:'title', foldersFirst:true, dropEmpty:true };
+  const viewState = { query:'', failedOnly:false, ageThreshold:0, ageOnly:false, compareShowDiffOnly:false,
+    dateFrom:null, dateTo:null, keepUndated:false };
+  let linkCheckRunning = false;
+  let linkCheckCancel = false;
+  let openMenuId = null;
+  let selectMode = false;
+  const selectedIds = new Set();
+  let lastSelectedId = null;
+  let renderOrder = [];
+  let collectNameTouched = false;
+  let activeTab = 'clean';
+
+  // The duplicate list, domain stats and file comparison are expensive and live
+  // in their own tabs, so they are only computed once their tab is visible.
+  function renderActiveTab(){
+    if(activeTab === 'dupes' && dirty.dupes){
+      renderDupGroups(); dirty.dupes = false;
+    } else if(activeTab === 'insights' && (dirty.domains || dirty.empty)){
+      renderDomainStats(); renderEmptyFolders(lastEmptyFolders);
+      dirty.domains = dirty.empty = false;
+    } else if(activeTab === 'compare' && dirty.compare){
+      renderFileCompare(); dirty.compare = false;
+    }
+  }
+
+  const APP = {
+    name: 'Bookmark Cleaner',
+    version: '1.0.0',
+    author: 'NoAuthZone',
+    repo: 'https://github.com/NoAuthZone/Bookmarks-cleaner'
+  };
+  const APP_STAMP = APP.name + ' v' + APP.version + ' by ' + APP.author + ' — ' + APP.repo;
+  document.getElementById('appVersion').textContent = 'v' + APP.version;
+  document.getElementById('appVersionFoot').textContent = 'v' + APP.version;
+  document.title = APP.name + ' ' + 'v' + APP.version;
+
+  // ---------- Parsing ----------
+  function parseDL(dl){
+    const items = [];
+    for(const el of Array.from(dl.children)){
+      if(el.tagName !== 'DT') continue;
+      const inner = el.firstElementChild;
+      if(!inner) continue;
+      const attrs = {};
+      for(const a of inner.attributes) attrs[a.name] = a.value;
+      if(inner.tagName === 'H3'){
+        // The subfolder content (DL) sits INSIDE the DT, right after the H3 —
+        // not as a sibling of the DT in the parent DL.
+        const nestedDl = Array.from(el.children).find(c => c.tagName === 'DL');
+        const children = nestedDl ? parseDL(nestedDl) : [];
+        const fAdd = attrs.add_date ? parseInt(attrs.add_date, 10) : null;
+        const fMod = attrs.last_modified ? parseInt(attrs.last_modified, 10) : null;
+        items.push({ id: nextId(), type:'folder', title: inner.textContent || '(untitled)', attrs, children,
+          include:true, expanded:true, dedupeMode:'url',
+          addDate: fAdd, lastMod: fMod, dateTs: fMod || fAdd || null });
+      } else if(inner.tagName === 'A'){
+        const addDate = attrs.add_date ? parseInt(attrs.add_date, 10) : null;
+        const lastMod = attrs.last_modified ? parseInt(attrs.last_modified, 10) : null;
+        // Last change if the export knows one, otherwise the date it was added.
+        const dateTs = lastMod || addDate || null;
+        const ageYears = dateTs ? (Date.now()/1000 - dateTs) / (365.25*24*3600) : null;
+        items.push({ id: nextId(), type:'bookmark', title: inner.textContent || '(untitled)', url: inner.getAttribute('href') || '', attrs, isDuplicate:false, isCanonical:false, willBeRemoved:false, protectReason:null, keepOverride:false, linkStatus:null, crossFileRemoved:false, addDate, lastMod, dateTs, ageYears });
+      }
+    }
+    return items;
+  }
+
+  function parseBookmarksFile(text){
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    const rootDl = doc.querySelector('dl');
+    if(!rootDl) throw new Error('No folder structure (DL) found — is this a bookmarks/favorites export in HTML format?');
+    return parseDL(rootDl);
+  }
+
+  // ---------- Helpers ----------
+  const normCache = new Map();
+  function normalizeUrl(url){
+    const hit = normCache.get(url);
+    if(hit !== undefined) return hit;
+    const out = computeNormalizedUrl(url);
+    if(normCache.size < 60000) normCache.set(url, out);
+    return out;
+  }
+  function computeNormalizedUrl(url){
+    try{
+      const u = new URL(url);
+      const host = u.host.replace(/^www\./,'');
+      const path = u.pathname.replace(/\/$/,'');
+      return (host + path + u.search).toLowerCase();
+    }catch(e){
+      return String(url||'').toLowerCase();
+    }
+  }
+  function formatDate(ts){
+    if(!ts) return '—';
+    const d = new Date(ts * 1000);
+    if(isNaN(d)) return '—';
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+  }
+  function dateTooltip(node){
+    if(!node.dateTs) return 'No date in this export';
+    const full = new Date(node.dateTs * 1000).toLocaleString();
+    return (node.lastMod ? 'Last changed: ' : 'Added: ') + full;
+  }
+  // How often an address occurs in the WHOLE tree, no matter which folder it
+  // sits in. The duplicate check only looks inside a single folder; this is what
+  // answers "which links do I really have only once".
+  function urlKeyOf(bm){
+    return opts.normalize ? normalizeUrl(bm.url) : (bm.url || '').toLowerCase();
+  }
+  function allBookmarks(){
+    const out = [];
+    (function walk(nodes){ for(const n of nodes){ if(n.type === 'bookmark') out.push(n); else walk(n.children); } })(tree);
+    return out;
+  }
+  let occCache = null;   // refilled on every analysis run
+  function urlOccurrences(){
+    if(occCache && occCache.normalize === opts.normalize) return occCache.map;
+    const map = new Map();
+    for(const bm of allBookmarks()){
+      const k = urlKeyOf(bm);
+      const arr = map.get(k);
+      if(arr) arr.push(bm); else map.set(k, [bm]);
+    }
+    occCache = { map, normalize: opts.normalize };
+    return map;
+  }
+
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+  function countFolders(nodes){
+    let c = 0;
+    for(const n of nodes){ if(n.type==='folder'){ c++; c += countFolders(n.children); } }
+    return c;
+  }
+  function countBookmarks(nodes){
+    let c = 0;
+    for(const n of nodes){ if(n.type==='bookmark') c++; else c += countBookmarks(n.children); }
+    return c;
+  }
+  function countFolderStates(nodes){
+    let total=0, on=0;
+    for(const n of nodes){
+      if(n.type==='folder'){
+        total++; if(n.include) on++;
+        const sub = countFolderStates(n.children);
+        total += sub.total; on += sub.on;
+      }
+    }
+    return {total, on};
+  }
+  function setInclude(node, value){
+    node.include = value;
+    for(const c of node.children) if(c.type==='folder') setInclude(c, value);
+  }
+  // ---------- Render scheduling ----------
+  // Interactions often trigger analysis and a tree render at the same time.
+  // Instead of doing both several times over, render exactly once per frame.
+  let renderFrame = null;
+  function scheduleRender(){
+    if(renderFrame !== null) return;
+    renderFrame = requestAnimationFrame(() => {
+      renderFrame = null;
+      recomputeAnalysis();
+      renderTree();
+    });
+  }
+  function renderNow(){
+    if(renderFrame !== null){ cancelAnimationFrame(renderFrame); renderFrame = null; }
+    recomputeAnalysis();
+    renderTree();
+  }
+
+  // ---------- Analysis ----------
+  let lastDupGroups = [];
+  let lastEmptyFolders = [];
+  const dirty = { dupes:true, domains:true, empty:true, compare:true };
+  function recomputeAnalysis(){
+    occCache = null;
+    lastDupGroups = [];
+    let dupGroupCount = 0, willRemove = 0, totalBm = 0;
+
+    // Duplicates are only looked for among direct sibling bookmarks in the same folder.
+    // Subfolders and other folders are not included — each folder has its own mode.
+    function walk(nodes, folderTitle, folderInclude, mode){
+      const bmItems = nodes.filter(n => n.type === 'bookmark');
+      totalBm += bmItems.length;
+      bmItems.forEach(b => { b.isDuplicate = false; b.isCanonical = false; b.willBeRemoved = false; b.protectReason = null; });
+      if(mode !== 'off'){
+        const groups = {};
+        for(const bm of bmItems){
+          const titleKey = (bm.title || '').trim().toLowerCase();
+          const urlKey = opts.normalize ? normalizeUrl(bm.url) : (bm.url || '').toLowerCase();
+          const key = mode === 'title' ? titleKey
+            : mode === 'both' ? (titleKey + '||' + urlKey)
+            : urlKey;
+          (groups[key] = groups[key] || []).push(bm);
+        }
+        for(const key in groups){
+          const arr = groups[key];
+          if(arr.length < 2) continue;
+          dupGroupCount++;
+          arr.forEach(b => b.isDuplicate = true);
+          arr[0].isCanonical = true;
+          for(let k=1;k<arr.length;k++){
+            if(arr[k].keepOverride){ continue; }
+            if(folderInclude){ arr[k].willBeRemoved = true; willRemove++; }
+            else { arr[k].protectReason = 'folder'; }
+          }
+          lastDupGroups.push({ folderTitle, mode, items: arr });
+        }
+      }
+      for(const n of nodes){
+        if(n.type === 'folder') walk(n.children, n.title, n.include, n.dedupeMode);
+      }
+    }
+    walk(tree, '(top level)', true, 'url');
+
+    let deadLinks = 0, crossFileRemoveCount = 0;
+    (function countExtra(nodes){
+      for(const n of nodes){
+        if(n.type==='bookmark'){
+          if(n.linkStatus==='failed') deadLinks++;
+          if(n.crossFileRemoved && !n.willBeRemoved) crossFileRemoveCount++;
+        } else countExtra(n.children);
+      }
+    })(tree);
+    willRemove += crossFileRemoveCount;
+
+    const folderStates = countFolderStates(tree);
+
+    let oldMarked = 0;
+    if(viewState.ageThreshold){
+      (function walkAge(nodes){ for(const n of nodes){ if(n.type==='bookmark'){ if(n.ageYears !== null && n.ageYears >= viewState.ageThreshold) oldMarked++; } else walkAge(n.children); } })(tree);
+    }
+    const emptyFolders = computeEmptyFolders();
+
+    const occ = urlOccurrences();
+    let uniqueUrls = 0, repeatedUrls = 0;
+    occ.forEach(arr => { if(arr.length === 1) uniqueUrls++; else repeatedUrls++; });
+
+    updateStats({
+      total: totalBm,
+      folders: countFolders(tree),
+      dupGroups: dupGroupCount,
+      willRemove,
+      selFolders: folderStates.on,
+      totalFolders: folderStates.total,
+      remaining: totalBm - willRemove,
+      deadLinks,
+      emptyFolders: emptyFolders.length,
+      oldMarked,
+      distinctUrls: occ.size,
+      uniqueUrls,
+      repeatedUrls
+    });
+    lastEmptyFolders = emptyFolders;
+    dirty.dupes = dirty.domains = dirty.empty = dirty.compare = true;
+    setCompareAvailable(tree.filter(n => n.isFileRoot).length >= 2);
+    renderActiveTab();
+  }
+
+  function computeEmptyFolders(){
+    const emptyList = [];
+    function effectiveCount(nodes){
+      let count = 0;
+      for(const n of nodes){
+        if(n.type === 'bookmark'){ if(!n.willBeRemoved && !n.crossFileRemoved) count++; }
+        else { const c = effectiveCount(n.children); if(c === 0) emptyList.push(n); count += c; }
+      }
+      return count;
+    }
+    effectiveCount(tree);
+    return emptyList;
+  }
+  function renderEmptyFolders(emptyFolders){
+    const el = document.getElementById('emptyFoldersList');
+    if(!emptyFolders.length){ el.innerHTML = '<div class="no-dups">No empty folders — nothing to drop.</div>'; return; }
+    el.innerHTML = '';
+    emptyFolders.slice(0, 100).forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'file-compare-row';
+      const nameEl = document.createElement('span');
+      nameEl.textContent = f.title;
+      const tagEl = document.createElement('b');
+      tagEl.textContent = 'empty';
+      row.append(nameEl, tagEl);
+      el.appendChild(row);
+    });
+  }
+  function computeDomainStats(){
+    const counts = {};
+    (function walk(nodes){
+      for(const n of nodes){
+        if(n.type === 'bookmark'){
+          let host = null;
+          try{ host = new URL(n.url).host.replace(/^www\./,''); }catch(e){}
+          if(host) counts[host] = (counts[host] || 0) + 1;
+        } else walk(n.children);
+      }
+    })(tree);
+    return Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  }
+  function renderDomainStats(){
+    const el = document.getElementById('domainStats');
+    const stats = computeDomainStats();
+    if(!stats.length){ el.innerHTML = '<div class="no-dups">No data.</div>'; return; }
+    const max = stats[0][1];
+    el.innerHTML = '';
+    stats.slice(0, 30).forEach(([domain, count]) => {
+      const row = document.createElement('div');
+      row.className = 'domain-row';
+      const name = document.createElement('span');
+      name.className = 'domain-name';
+      name.textContent = domain;
+      const barWrap = document.createElement('div');
+      barWrap.style.flex = '1';
+      const bar = document.createElement('div');
+      bar.className = 'domain-bar';
+      bar.style.width = Math.max(4, Math.round((count/max)*100)) + '%';
+      barWrap.appendChild(bar);
+      const num = document.createElement('span');
+      num.className = 'domain-count';
+      num.textContent = count;
+      row.append(name, barWrap, num);
+      el.appendChild(row);
+    });
+  }
+
+  // ---------- File comparison (when multiple files are merged) ----------
+  function computeFileComparison(){
+    const fileRoots = tree.filter(n => n.type === 'folder' && n.isFileRoot);
+    if(fileRoots.length < 2) return null;
+    const fileLabels = fileRoots.map(fr => fr.fileLabel);
+    const perFile = fileRoots.map(fr => {
+      let bm = 0, fo = 0;
+      (function count(nodes){ for(const n of nodes){ if(n.type === 'bookmark') bm++; else { fo++; count(n.children); } } })(fr.children);
+      return { label: fr.fileLabel, bookmarks: bm, folders: fo };
+    });
+
+    // Group folders with the same name across the files (including their subfolder content),
+    // Overlaps are only searched for within such a folder group — not across the whole file.
+    const folderMap = {};
+    fileRoots.forEach(fr => {
+      (function walk(nodes){
+        for(const n of nodes){
+          if(n.type === 'folder'){
+            const bms = [];
+            (function collect(cs){ for(const c of cs){ if(c.type === 'bookmark') bms.push(c); else collect(c.children); } })(n.children);
+            if(bms.length){
+              if(!folderMap[n.title]) folderMap[n.title] = {};
+              (folderMap[n.title][fr.fileLabel] = folderMap[n.title][fr.fileLabel] || []).push(...bms);
+            }
+            walk(n.children);
+          }
+        }
+      })(fr.children);
+    });
+
+    const folderGroups = [];
+    for(const title in folderMap){
+      const byFile = folderMap[title];
+      const filesPresent = Object.keys(byFile);
+      if(filesPresent.length < 2) continue;
+      const urlMap = {};
+      filesPresent.forEach(fl => {
+        byFile[fl].forEach(bm => {
+          const key = normalizeUrl(bm.url);
+          if(!urlMap[key]) urlMap[key] = { url: bm.url, byFile: {} };
+          (urlMap[key].byFile[fl] = urlMap[key].byFile[fl] || []).push(bm);
+        });
+      });
+      const overlaps = Object.values(urlMap).filter(e => Object.keys(e.byFile).length > 1);
+      const uniques = {};
+      filesPresent.forEach(fl => { uniques[fl] = []; });
+      Object.values(urlMap).forEach(e => {
+        const files = Object.keys(e.byFile);
+        if(files.length === 1) uniques[files[0]].push(...e.byFile[files[0]]);
+      });
+      if(!overlaps.length && !filesPresent.some(fl => uniques[fl].length)) continue;
+      folderGroups.push({
+        title,
+        fileLabels: filesPresent,
+        counts: filesPresent.map(fl => ({ label: fl, count: byFile[fl].length })),
+        overlaps,
+        uniques
+      });
+    }
+
+    return { fileLabels, perFile, folderGroups };
+  }
+  function renderFileCompare(){
+    const section = document.getElementById('fileCompareSection');
+    const result = computeFileComparison();
+    if(!result){
+      section.classList.add('hidden');
+      setCompareAvailable(false);
+      return;
+    }
+    section.classList.remove('hidden');
+    setCompareAvailable(true);
+
+    const statsEl = document.getElementById('fileCompareStats');
+    statsEl.innerHTML = '';
+    statsEl.className = 'file-compare-cards';
+    result.perFile.forEach(f => {
+      const card = document.createElement('div');
+      card.className = 'file-compare-card';
+      card.innerHTML = '<div class="fc-name">' + escapeHtml(f.label) + '</div>' +
+        '<div class="fc-num">' + f.bookmarks + '</div><div class="fc-lbl">Bookmarks</div>' +
+        '<div class="fc-num">' + f.folders + '</div><div class="fc-lbl">Folders</div>';
+      statsEl.appendChild(card);
+    });
+
+    const dupesEl = document.getElementById('fileCompareDupes');
+    dupesEl.innerHTML = '';
+    const diffMode = viewState.compareShowDiffOnly;
+    const sumUniques = g => Object.values(g.uniques).reduce((a, arr) => a + arr.length, 0);
+    let groups = diffMode
+      ? result.folderGroups.filter(g => sumUniques(g) > 0)
+      : result.folderGroups.filter(g => g.overlaps.length > 0);
+    groups = groups.slice().sort((a, b) => diffMode ? sumUniques(b) - sumUniques(a) : b.overlaps.length - a.overlaps.length);
+
+    if(!groups.length){
+      dupesEl.innerHTML = diffMode
+        ? '<div class="no-dups">No differences found — matching folders contain the same URLs everywhere.</div>'
+        : '<div class="no-dups">No matching folder names with overlaps between the files were found.</div>';
+      return;
+    }
+
+    groups.slice(0, 40).forEach(group => {
+      const section = document.createElement('div');
+      section.className = 'folder-group-section';
+
+      const heading = document.createElement('div');
+      heading.className = 'folder-group-heading';
+      const countsText = group.counts.map(c => c.label + ': ' + c.count).join('  ·  ');
+      heading.innerHTML = '<span class="fg-title">📁 ' + escapeHtml(group.title) + '</span><span class="fg-counts">' + escapeHtml(countsText) + '</span>';
+      section.appendChild(heading);
+
+      if(diffMode){
+        const grid = document.createElement('div');
+        grid.className = 'diff-grid';
+        grid.style.gridTemplateColumns = 'repeat(' + group.fileLabels.length + ', 1fr)';
+        group.fileLabels.forEach(lbl => {
+          const col = document.createElement('div');
+          col.className = 'diff-col';
+          const head = document.createElement('div');
+          head.className = 'diff-col-head';
+          head.textContent = lbl + ' (' + group.uniques[lbl].length + ')';
+          col.appendChild(head);
+          if(!group.uniques[lbl].length){
+            const empty = document.createElement('div');
+            empty.className = 'no-dups';
+            empty.textContent = 'No differences';
+            col.appendChild(empty);
+          } else {
+            group.uniques[lbl].forEach(bm => {
+              const row = document.createElement('div');
+              row.className = 'diff-row';
+              const t = document.createElement('span');
+              t.className = 'cmp-title';
+              t.textContent = bm.title;
+              const u = document.createElement('span');
+              u.className = 'diff-url';
+              u.textContent = bm.url;
+              row.append(t, u);
+              col.appendChild(row);
+            });
+          }
+          grid.appendChild(col);
+        });
+        section.appendChild(grid);
+        dupesEl.appendChild(section);
+        return;
+      }
+
+      const scrollWrap = document.createElement('div');
+      scrollWrap.className = 'compare-table-wrap';
+      const table = document.createElement('table');
+      table.className = 'compare-table';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      const urlTh = document.createElement('th');
+      urlTh.textContent = 'URL';
+      headRow.appendChild(urlTh);
+      group.fileLabels.forEach(lbl => {
+        const th = document.createElement('th');
+        th.textContent = lbl;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      group.overlaps.forEach(entry => {
+        const tr = document.createElement('tr');
+        const urlTd = document.createElement('td');
+        urlTd.className = 'cmp-url';
+        urlTd.textContent = entry.url;
+        tr.appendChild(urlTd);
+
+        let canonicalSet = false;
+        group.fileLabels.forEach(lbl => {
+          const td = document.createElement('td');
+          const occs = entry.byFile[lbl] || [];
+          if(!occs.length){
+            td.className = 'cmp-empty';
+            td.textContent = '–';
+          } else {
+            occs.forEach(node => {
+              const cell = document.createElement('div');
+              cell.className = 'cmp-cell';
+              const titleSpan = document.createElement('span');
+              titleSpan.className = 'cmp-title';
+              titleSpan.textContent = node.title;
+              cell.appendChild(titleSpan);
+              let tag;
+              if(!canonicalSet){
+                tag = document.createElement('span');
+                tag.className = 'tag tag-keep';
+                tag.textContent = 'original';
+                canonicalSet = true;
+              } else {
+                tag = document.createElement('button');
+                tag.type = 'button';
+                tag.className = 'tag tag-clickable ' + (node.crossFileRemoved ? 'tag-remove' : 'tag-protected');
+                tag.textContent = node.crossFileRemoved ? 'will be removed' : 'keep';
+                tag.onclick = () => { node.crossFileRemoved = !node.crossFileRemoved; scheduleRender(); };
+              }
+              cell.appendChild(tag);
+              td.appendChild(cell);
+            });
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      scrollWrap.appendChild(table);
+      section.appendChild(scrollWrap);
+      dupesEl.appendChild(section);
+    });
+  }
+
+  // ---------- Rendering: tree ----------
+  const treeEl = document.getElementById('tree');
+  function nodeMatchesFilter(n){
+    if(viewState.dateFrom !== null || viewState.dateTo !== null){
+      if(n.dateTs === null){
+        if(!viewState.keepUndated) return false;
+      } else {
+        if(viewState.dateFrom !== null && n.dateTs < viewState.dateFrom) return false;
+        if(viewState.dateTo !== null && n.dateTs > viewState.dateTo) return false;
+      }
+    }
+    if(viewState.failedOnly && n.linkStatus !== 'failed') return false;
+    if(viewState.ageOnly && !(viewState.ageThreshold && n.ageYears !== null && n.ageYears >= viewState.ageThreshold)) return false;
+    if(viewState.query){
+      const hay = (n.title + ' ' + n.url).toLowerCase();
+      if(!hay.includes(viewState.query)) return false;
+    }
+    return true;
+  }
+  function isFilterActive(){
+    return !!viewState.query || viewState.failedOnly || viewState.ageOnly
+      || viewState.dateFrom !== null || viewState.dateTo !== null;
+  }
+  function computeVisible(nodes, visibleIds){
+    let any = false;
+    for(const n of nodes){
+      if(n.type === 'bookmark'){
+        if(nodeMatchesFilter(n)){ visibleIds.add(n.id); any = true; }
+      } else {
+        const childAny = computeVisible(n.children, visibleIds);
+        if(childAny){ visibleIds.add(n.id); any = true; }
+      }
+    }
+    return any;
+  }
+
+  // Count all bookmarks once per render pass instead of walking every folder's
+  // full subtree again for each folder row.
+  let countCache = new Map();
+  function buildCountCache(nodes){
+    let total = 0;
+    for(const n of nodes){
+      if(n.type === 'bookmark'){ total++; }
+      else { const sub = buildCountCache(n.children); countCache.set(n.id, sub); total += sub; }
+    }
+    return total;
+  }
+
+  // A filter can produce thousands of hits. Only build what someone will
+  // actually look through; the rest stays behind a note.
+  const ROW_CAP_FILTERED = 1200;
+  const ROW_CAP_PLAIN = 4000;
+  let renderBudget = Infinity;
+  let renderSkipped = 0;
+
+  function renderTree(){
+    countCache = new Map();
+    buildCountCache(tree);
+    treeEl.innerHTML = '';
+    treeEl.classList.toggle('select-mode', selectMode);
+    renderOrder = [];
+    // Drop selected ids whose entries have disappeared in the meantime
+    if(selectedIds.size){
+      const alive = new Set();
+      (function walk(nodes){ for(const n of nodes){ alive.add(n.id); if(n.type === 'folder') walk(n.children); } })(tree);
+      selectedIds.forEach(id => { if(!alive.has(id)) selectedIds.delete(id); });
+    }
+    updateSelBar();
+    scheduleCollectPreview();
+    const filterActive = isFilterActive();
+    let visibleIds = null;
+    if(filterActive){
+      visibleIds = new Set();
+      computeVisible(tree, visibleIds);
+      if(visibleIds.size === 0){
+        const empty = document.createElement('div');
+        empty.className = 'no-results';
+        empty.textContent = 'No matches — try a shorter search term.';
+        treeEl.appendChild(empty);
+        return;
+      }
+    }
+    renderBudget = filterActive ? ROW_CAP_FILTERED : ROW_CAP_PLAIN;
+    renderSkipped = 0;
+    treeEl.appendChild(renderNodes(sortedForDisplay(tree, true), visibleIds));
+    if(renderSkipped > 0){
+      const note = document.createElement('div');
+      note.className = 'no-results';
+      note.textContent = renderSkipped + ' more bookmarks are not drawn here. '
+        + (filterActive ? 'Narrow the search to see them.' : 'Collapse a folder or search to narrow it down.')
+        + ' They are still counted, cleaned and exported.';
+      treeEl.appendChild(note);
+    }
+  }
+  function renderNodes(nodes, visibleIds){
+    const frag = document.createDocumentFragment();
+    for(const n of nodes){
+      if(visibleIds && !visibleIds.has(n.id)) continue;
+      if(n.type === 'folder'){
+        renderOrder.push(n.id);
+        frag.appendChild(renderFolder(n, visibleIds));
+      } else {
+        if(renderBudget <= 0){ renderSkipped++; continue; }
+        renderBudget--;
+        renderOrder.push(n.id);
+        frag.appendChild(renderBookmark(n));
+      }
+    }
+    return frag;
+  }
+  function renderFolder(n, visibleIds){
+    const wrap = document.createElement('div');
+    wrap.className = 'node';
+
+    const row = document.createElement('div');
+    row.className = 'row folder-row' + (selectedIds.has(n.id) ? ' selected' : '');
+
+    const expanded = visibleIds ? true : n.expanded;
+
+    const twisty = document.createElement('button');
+    twisty.type = 'button';
+    twisty.className = 'twisty' + (expanded ? ' open' : '');
+    twisty.setAttribute('aria-label', expanded ? 'Collapse folder' : 'Expand folder');
+    twisty.setAttribute('aria-expanded', String(!!expanded));
+    twisty.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    twisty.onclick = () => { n.expanded = !n.expanded; renderTree(); };
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = n.include;
+    cb.title = 'Include this folder in the cleanup';
+    cb.onchange = () => { setInclude(n, cb.checked); scheduleRender(); };
+
+    const icon = document.createElement('span');
+    icon.className = 'folder-icon';
+    icon.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.4a1.5 1.5 0 0 1 1.06.44l1.1 1.1H16a1.5 1.5 0 0 1 1.5 1.5v7.46A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z" fill="currentColor" opacity=".9"/></svg>';
+
+    const title = document.createElement('span');
+    title.className = 'folder-title';
+    title.textContent = n.title;
+    title.title = n.title;
+
+    const count = document.createElement('span');
+    count.className = 'folder-count';
+    const cached = countCache.get(n.id);
+    count.textContent = cached !== undefined ? cached : countBookmarks(n.children);
+
+    const modeSelect = document.createElement('select');
+    modeSelect.className = 'dedupe-mode-select';
+    modeSelect.title = 'Duplicate detection for this folder';
+    [['off','no dupes'], ['url','by URL'], ['title','by title'], ['both','title+URL']].forEach(([val,label]) => {
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = label;
+      if(n.dedupeMode === val) opt.selected = true;
+      modeSelect.appendChild(opt);
+    });
+    modeSelect.onchange = () => { n.dedupeMode = modeSelect.value; scheduleRender(); };
+
+    const folderActions = document.createElement('div');
+    folderActions.className = 'folder-actions';
+    const fDate = document.createElement('span');
+    fDate.className = 'row-date' + (n.dateTs ? '' : ' no-date');
+    fDate.textContent = formatDate(n.dateTs);
+    fDate.title = dateTooltip(n);
+    const fTail = document.createElement('div');
+    fTail.className = 'row-tail';
+    fTail.appendChild(modeSelect);
+    folderActions.append(fTail, fDate);
+
+    if(selectMode) row.appendChild(makeSelectBox(n));
+    row.append(twisty, cb, icon, title, count, folderActions);
+    wrap.appendChild(row);
+
+    if(expanded && n.children.length){
+      const childWrap = document.createElement('div');
+      childWrap.className = 'children';
+      childWrap.appendChild(renderNodes(sortedForDisplay(n.children, n.include), visibleIds));
+      wrap.appendChild(childWrap);
+    }
+    return wrap;
+  }
+  function collectFolderOptions(){
+    const opts = [{ node: null, label: '(top level)' }];
+    (function walk(nodes, path){
+      for(const n of nodes){
+        if(n.type === 'folder'){
+          const label = path.concat(n.title).join(' / ');
+          opts.push({ node:n, label });
+          walk(n.children, path.concat(n.title));
+        }
+      }
+    })(tree, []);
+    return opts;
+  }
+  function removeNodeById(nodes, id){
+    for(let i=0;i<nodes.length;i++){
+      if(nodes[i].id === id){ nodes.splice(i,1); return true; }
+      if(nodes[i].type === 'folder' && removeNodeById(nodes[i].children, id)) return true;
+    }
+    return false;
+  }
+  function moveBookmark(bm, destNode){
+    removeNodeById(tree, bm.id);
+    (destNode ? destNode.children : tree).push(bm);
+    scheduleRender();
+  }
+
+  // ---------- Collecting entries into a new folder ----------
+  function capitalize(t){ return t.charAt(0).toUpperCase() + t.slice(1); }
+
+  // Every line makes one folder. "Name: a, b" names it explicitly, a bare list
+  // inherits its name from the first term.
+  function parseCollectGroups(raw, perKeyword){
+    const groups = [];
+    for(const line of String(raw || '').split('\n')){
+      const trimmed = line.trim();
+      if(!trimmed) continue;
+      let name = null, rest = trimmed;
+      const m = trimmed.match(/^([^:]+):(.*)$/);
+      if(m && m[2].trim()){ name = m[1].trim(); rest = m[2]; }
+      const terms = rest.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+      if(!terms.length) continue;
+      if(perKeyword && !name) terms.forEach(t => groups.push({ name: capitalize(t), terms: [t] }));
+      else groups.push({ name: name || capitalize(terms[0]), terms });
+    }
+    return groups;
+  }
+  // The first matching line wins — otherwise, in move mode, it would be
+  // unpredictable which folder a hit ends up in.
+  function matchGroups(groups){
+    const buckets = groups.map(g => ({ name: g.name, items: [] }));
+    if(!groups.length) return buckets;
+    for(const bm of allBookmarks()){
+      const hay = ((bm.title || '') + ' ' + (bm.url || '')).toLowerCase();
+      for(let i = 0; i < groups.length; i++){
+        if(groups[i].terms.some(t => hay.includes(t))){ buckets[i].items.push(bm); break; }
+      }
+    }
+    return buckets;
+  }
+
+  function collectMatches(rule, keywordsRaw){
+    const all = allBookmarks();
+    if(rule === 'keywords'){
+      const buckets = matchGroups(parseCollectGroups(keywordsRaw, false));
+      return buckets.reduce((acc, b) => acc.concat(b.items), []);
+    }
+    if(rule === 'unique' || rule === 'repeated'){
+      const occ = urlOccurrences();
+      return all.filter(n => {
+        const arr = occ.get(urlKeyOf(n));
+        return rule === 'unique' ? arr.length === 1 : arr.length > 1;
+      });
+    }
+    if(rule === 'old'){
+      const th = viewState.ageThreshold || 1;
+      return all.filter(n => n.ageYears !== null && n.ageYears >= th);
+    }
+    if(rule === 'dead') return all.filter(n => n.linkStatus === 'failed');
+    return [];
+  }
+  function suggestedCollectName(rule, keywordsRaw){
+    if(rule === 'keywords'){
+      const groups = parseCollectGroups(keywordsRaw, false);
+      return groups.length ? groups[0].name : '';
+    }
+    if(rule === 'unique') return 'Links that appear once';
+    if(rule === 'repeated') return 'Links with copies';
+    if(rule === 'old') return 'Older than ' + (viewState.ageThreshold || 1) + ' years';
+    if(rule === 'dead') return 'Unreachable links';
+    return 'Collected';
+  }
+  function cloneBookmarkNode(n){
+    return Object.assign({}, n, {
+      id: nextId(),
+      attrs: Object.assign({}, n.attrs),
+      isDuplicate:false, isCanonical:false, willBeRemoved:false,
+      protectReason:null, keepOverride:false, crossFileRemoved:false
+    });
+  }
+  function createCollectionFolder(name, nodes, copy, parent){
+    const now = Math.floor(Date.now() / 1000);
+    const folder = {
+      id: nextId(), type:'folder', title: name,
+      attrs: { add_date: String(now), last_modified: String(now) },
+      children: [], include: true, expanded: true,
+      dedupeMode: document.getElementById('globalDedupeMode').value,
+      addDate: now, lastMod: now, dateTs: now
+    };
+    if(copy){
+      folder.children = nodes.map(cloneBookmarkNode);
+    } else {
+      nodes.forEach(n => removeNodeById(tree, n.id));
+      folder.children = nodes;
+    }
+    (parent ? parent.children : tree).push(folder);
+    return folder;
+  }
+  // Refill the parent-folder select without losing the current choice
+  let collectParentTargets = [];
+  function refreshCollectParents(){
+    const sel = document.getElementById('collectParent');
+    const previous = sel.value;
+    collectParentTargets = collectFolderOptions();
+    sel.innerHTML = '';
+    collectParentTargets.forEach((o, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = idx === 0 ? 'Top level' : o.label;
+      sel.appendChild(opt);
+    });
+    if(previous && collectParentTargets[Number(previous)]) sel.value = previous;
+  }
+  function currentCollectParent(){
+    const sel = document.getElementById('collectParent');
+    const entry = collectParentTargets[Number(sel.value)];
+    return entry ? entry.node : null;
+  }
+  let collectPreviewTimer = null;
+  function scheduleCollectPreview(){
+    clearTimeout(collectPreviewTimer);
+    collectPreviewTimer = setTimeout(updateCollectPreview, 180);
+  }
+  function updateCollectPreview(){
+    const preview = document.getElementById('collectPreview');
+    if(!preview) return;
+    const rule = document.getElementById('collectRule').value;
+    const keywords = document.getElementById('collectKeywords').value;
+    const perKeyword = document.getElementById('collectPerKeyword').checked;
+    const isKeywords = rule === 'keywords';
+    document.getElementById('collectKeywordsRow').classList.toggle('hidden', !isKeywords);
+    document.getElementById('collectPerKeywordRow').classList.toggle('hidden', !isKeywords);
+
+    const groups = isKeywords ? parseCollectGroups(keywords, perKeyword) : [];
+    // The name field only helps as long as exactly one folder is created.
+    document.getElementById('collectNameRow').classList.toggle('hidden', isKeywords && groups.length !== 1);
+
+    refreshCollectParents();
+    preview.textContent = '';
+    preview.className = 'sub';
+
+    if(!tree.length){ preview.textContent = 'No file loaded yet.'; return; }
+
+    if(isKeywords){
+      if(!groups.length){ preview.textContent = 'Type at least one keyword.'; return; }
+      const buckets = matchGroups(groups);
+      const total = buckets.reduce((a, b) => a + b.items.length, 0);
+      const list = document.createElement('div');
+      list.className = 'collect-list';
+      buckets.forEach(b => {
+        const row = document.createElement('div');
+        if(!b.items.length) row.className = 'zero';
+        const nameEl = document.createElement('span');
+        nameEl.textContent = b.name;
+        const numEl = document.createElement('b');
+        numEl.textContent = b.items.length;
+        row.append(nameEl, numEl);
+        list.appendChild(row);
+      });
+      const sum = document.createElement('span');
+      sum.textContent = buckets.filter(b => b.items.length).length + ' folder(s), '
+        + total + ' entries. Empty lines are skipped.';
+      preview.append(list, sum);
+      if(groups.length === 1 && !collectNameTouched){
+        document.getElementById('collectName').value = groups[0].name;
+      }
+      return;
+    }
+
+    const hits = collectMatches(rule, keywords).length;
+    preview.textContent = hits === 1 ? '1 entry matches.' : hits + ' entries match.';
+    if(!collectNameTouched) document.getElementById('collectName').value = suggestedCollectName(rule, keywords);
+  }
+
+  // ---------- Multi-selection ----------
+  // Only the topmost selected nodes are moved: if a folder is ticked, its
+  // children travel with it anyway and must not be re-inserted separately.
+  function selectedTopNodes(){
+    const res = [];
+    (function walk(nodes, insideSelected){
+      for(const n of nodes){
+        const sel = selectedIds.has(n.id);
+        if(sel && !insideSelected) res.push(n);
+        if(n.type === 'folder') walk(n.children, insideSelected || sel);
+      }
+    })(tree, false);
+    return res;
+  }
+  function collectSubtreeIds(node, into){
+    into.add(node.id);
+    if(node.type === 'folder') node.children.forEach(c => collectSubtreeIds(c, into));
+    return into;
+  }
+  function toggleSelection(id, checked, withShift){
+    if(withShift && lastSelectedId !== null){
+      const a = renderOrder.indexOf(lastSelectedId);
+      const b = renderOrder.indexOf(id);
+      if(a !== -1 && b !== -1){
+        const [from, to] = a < b ? [a, b] : [b, a];
+        for(let i = from; i <= to; i++){
+          if(checked) selectedIds.add(renderOrder[i]); else selectedIds.delete(renderOrder[i]);
+        }
+        lastSelectedId = id;
+        renderTree();
+        return;
+      }
+    }
+    if(checked) selectedIds.add(id); else selectedIds.delete(id);
+    lastSelectedId = id;
+    renderTree();
+  }
+  function makeSelectBox(n){
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'sel-box';
+    box.checked = selectedIds.has(n.id);
+    box.title = 'Select for moving';
+    box.setAttribute('aria-label', 'Select "' + n.title + '" for moving');
+    box.onclick = e => {
+      e.stopPropagation();
+      toggleSelection(n.id, box.checked, e.shiftKey);
+    };
+    return box;
+  }
+  function moveSelectionTo(target, label){
+    const nodes = selectedTopNodes();
+    if(!nodes.length) return;
+    nodes.forEach(n => removeNodeById(tree, n.id));
+    const dest = target ? target.children : tree;
+    nodes.forEach(n => dest.push(n));
+    const count = nodes.length;
+    selectedIds.clear();
+    lastSelectedId = null;
+    showToast(count + (count === 1 ? ' entry' : ' entries') + ' moved to ' + label + '.');
+    scheduleRender();
+  }
+  function updateSelBar(){
+    const bar = document.getElementById('selBar');
+    bar.classList.toggle('hidden', !selectMode);
+    if(!selectMode) return;
+    const top = selectedTopNodes();
+    const folders = top.filter(n => n.type === 'folder').length;
+    const marks = selectedIds.size;
+    document.getElementById('selCount').textContent = marks === 0
+      ? 'Nothing selected'
+      : marks + ' selected' + (folders ? ' (' + folders + ' folder' + (folders > 1 ? 's' : '') + ' incl. contents)' : '');
+
+    // Hide every target that is being moved itself — otherwise a folder could
+    // end up inside itself.
+    const banned = new Set();
+    top.forEach(n => { if(n.type === 'folder') collectSubtreeIds(n, banned); });
+    const targets = collectFolderOptions().filter(o => !o.node || !banned.has(o.node.id));
+    const sel = document.getElementById('selMoveTarget');
+    sel.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.textContent = marks ? 'Move selection to…' : 'Move to…';
+    ph.value = ''; ph.disabled = true; ph.selected = true;
+    sel.appendChild(ph);
+    targets.forEach((o, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = o.label;
+      sel.appendChild(opt);
+    });
+    sel.disabled = marks === 0;
+    sel.onchange = () => {
+      const chosen = targets[Number(sel.value)];
+      if(chosen) moveSelectionTo(chosen.node, chosen.label);
+    };
+  }
+
+  function renderBookmark(n){
+    const wrap = document.createElement('div');
+    wrap.className = 'node';
+
+    const row = document.createElement('div');
+    row.className = 'row bm-row'
+      + ((n.willBeRemoved || n.crossFileRemoved) ? ' will-remove' : '')
+      + (openMenuId === n.id ? ' menu-open' : '')
+      + (selectedIds.has(n.id) ? ' selected' : '');
+
+    const dot = document.createElement('span');
+    dot.className = 'bm-dot';
+
+    const title = document.createElement('span');
+    title.className = 'bm-title';
+    title.textContent = n.title;
+    title.title = n.title;
+
+    const url = document.createElement('span');
+    url.className = 'bm-url';
+    url.textContent = n.url;
+    url.title = n.url;
+
+    if(selectMode){
+      const spacer = document.createElement('span');
+      spacer.className = 'sel-spacer';
+      row.append(makeSelectBox(n), spacer);
+    }
+    row.append(dot, title, url);
+
+    const rightGroup = document.createElement('div');
+    rightGroup.className = 'bm-actions';
+
+    const dateEl = document.createElement('span');
+    dateEl.className = 'row-date';
+    const isOld = viewState.ageThreshold && n.ageYears !== null && n.ageYears >= viewState.ageThreshold;
+    dateEl.className = 'row-date' + (isOld ? ' is-old' : '') + (n.dateTs ? '' : ' no-date');
+    dateEl.textContent = formatDate(n.dateTs);
+    if(isOld){
+      const age = document.createElement('span');
+      age.className = 'age';
+      age.textContent = ' · ' + Math.floor(n.ageYears) + 'y';
+      dateEl.appendChild(age);
+    }
+    dateEl.title = dateTooltip(n) + (n.ageYears !== null ? ' — ' + n.ageYears.toFixed(1) + ' years old' : '');
+    // The date is appended after the tags so the column always keeps the same
+    // distance from the right edge.
+
+    if(n.linkStatus === 'checking'){
+      const t = document.createElement('span');
+      t.className = 'tag tag-checking';
+      t.textContent = 'checking…';
+      rightGroup.appendChild(t);
+    } else if(n.linkStatus === 'failed'){
+      const t = document.createElement('span');
+      t.className = 'tag tag-dead';
+      t.textContent = 'unreachable';
+      rightGroup.appendChild(t);
+    }
+
+    if(n.isDuplicate){
+      if(n.isCanonical){
+        const tag = document.createElement('span');
+        tag.className = 'tag tag-keep';
+        tag.textContent = 'original';
+        rightGroup.appendChild(tag);
+      } else {
+        const tag = document.createElement('button');
+        tag.type = 'button';
+        tag.className = 'tag tag-clickable ' + (n.keepOverride ? 'tag-keep' : n.willBeRemoved ? 'tag-remove' : 'tag-protected');
+        tag.textContent = n.keepOverride ? 'kept manually' : n.willBeRemoved ? 'will be removed' : 'folder not selected';
+        tag.title = 'Click to keep this copy anyway';
+        tag.onclick = () => { n.keepOverride = !n.keepOverride; scheduleRender(); };
+        rightGroup.appendChild(tag);
+      }
+    }
+
+    const menuOpen = openMenuId === n.id;
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.className = 'bm-more-btn' + (menuOpen ? ' active' : '');
+    moreBtn.title = menuOpen ? 'Close editor' : 'Edit title, link or folder (or double-click the row)';
+    moreBtn.setAttribute('aria-label', 'Edit bookmark');
+    moreBtn.setAttribute('aria-expanded', String(menuOpen));
+    moreBtn.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true">'
+      + '<path d="M13.6 3.4a1.8 1.8 0 0 1 2.5 2.5l-7.4 7.4-3.3.8.8-3.3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'
+      + '<path d="M4 16.4h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    const toggleMenu = () => { openMenuId = menuOpen ? null : n.id; renderTree(); };
+    moreBtn.onclick = e => { e.stopPropagation(); toggleMenu(); };
+    const bTail = document.createElement('div');
+    bTail.className = 'row-tail';
+    bTail.appendChild(moreBtn);
+    rightGroup.append(bTail, dateEl);
+
+    // Second way into the editor: double-click the row. A single click stays
+    // free so text can still be selected.
+    row.ondblclick = () => toggleMenu();
+
+    row.appendChild(rightGroup);
+
+    wrap.appendChild(row);
+
+    if(openMenuId === n.id){
+      const menu = document.createElement('div');
+      menu.className = 'bm-menu';
+      const menuLabel = document.createElement('div');
+      menuLabel.className = 'bm-menu-label';
+      menuLabel.textContent = 'Edit bookmark';
+      menu.appendChild(menuLabel);
+
+      function field(labelText, value, isUrl){
+        const wrapField = document.createElement('label');
+        wrapField.className = 'bm-field';
+        const lab = document.createElement('span');
+        lab.textContent = labelText;
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'bm-menu-input' + (isUrl ? ' is-url' : '');
+        inp.value = value;
+        inp.spellcheck = false;
+        wrapField.append(lab, inp);
+        return { wrapField, inp };
+      }
+
+      const titleField = field('Title', n.title, false);
+      const urlField = field('Link', n.url, true);
+
+      function save(){
+        const newTitle = titleField.inp.value.trim();
+        const newUrl = urlField.inp.value.trim();
+        if(!newUrl){
+          urlField.inp.classList.add('invalid');
+          showToast('The link cannot be empty.');
+          return;
+        }
+        n.title = newTitle || n.title;
+        if(newUrl !== n.url){
+          n.url = newUrl;
+          n.attrs.href = newUrl;   // without this the old address lands in the export
+        }
+        openMenuId = null;
+        scheduleRender();
+      }
+
+      [titleField.inp, urlField.inp].forEach(inp => {
+        inp.addEventListener('keydown', e => {
+          if(e.key === 'Enter'){ e.preventDefault(); save(); }
+        });
+        inp.addEventListener('input', () => inp.classList.remove('invalid'));
+      });
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'mini-btn active-toggle';
+      saveBtn.textContent = 'Save';
+      saveBtn.onclick = save;
+
+      const folderOpts = collectFolderOptions();
+      const moveSelect = document.createElement('select');
+      moveSelect.className = 'dedupe-mode-select';
+      const placeholder = document.createElement('option');
+      placeholder.textContent = 'Move to…';
+      placeholder.value = '';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      moveSelect.appendChild(placeholder);
+      folderOpts.forEach((opt, idx) => {
+        const o = document.createElement('option');
+        o.value = String(idx);
+        o.textContent = opt.label;
+        moveSelect.appendChild(o);
+      });
+      moveSelect.onchange = () => {
+        const opt = folderOpts[Number(moveSelect.value)];
+        n.title = titleField.inp.value.trim() || n.title;
+        const typedUrl = urlField.inp.value.trim();
+        if(typedUrl && typedUrl !== n.url){ n.url = typedUrl; n.attrs.href = typedUrl; }
+        openMenuId = null;
+        moveBookmark(n, opt.node);
+      };
+
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'mini-btn';
+      closeBtn.textContent = 'Cancel';
+      closeBtn.onclick = () => { openMenuId = null; renderTree(); };
+
+      const hint = document.createElement('span');
+      hint.className = 'bm-menu-hint';
+      hint.textContent = dateTooltip(n);
+
+      const foot = document.createElement('div');
+      foot.className = 'bm-menu-foot';
+      foot.append(saveBtn, closeBtn, moveSelect, hint);
+
+      menu.append(titleField.wrapField, urlField.wrapField, foot);
+      setTimeout(() => titleField.inp.focus(), 0);
+      wrap.appendChild(menu);
+    }
+
+    return wrap;
+  }
+
+  // ---------- Rendering: stats & duplicates ----------
+  const elCache = {};
+  const el = id => (elCache[id] || (elCache[id] = document.getElementById(id)));
+  function setText(id, value){
+    const node = el(id);
+    const str = String(value);
+    if(node.textContent !== str) node.textContent = str;
+  }
+  function updateStats(s){
+    setText('statTotal', s.total);
+    setText('statFolders', s.folders);
+    setText('statDups', s.dupGroups);
+    setText('statRemove', s.willRemove);
+    setText('ovTotal', s.total);
+    setText('ovFolders', s.folders);
+    setText('statSelFolders', s.selFolders + ' / ' + s.totalFolders);
+    setText('statDupGroups', s.dupGroups);
+    setText('statWillRemove', s.willRemove);
+    setText('statRemaining', s.remaining);
+    const pct = s.total > 0 ? Math.round((s.willRemove / s.total) * 100) : 0;
+    setText('statRemovePct', pct + ' %');
+    el('ratioKeep').style.width = (100 - pct) + '%';
+    setText('ratioPct', pct + ' % removed');
+    setText('tabBadgeDupes', s.dupGroups);
+    el('tabBadgeDupes').classList.toggle('warn', s.dupGroups > 0);
+    setText('statDeadLinks', s.deadLinks);
+    setText('statEmptyFolders', s.emptyFolders);
+    setText('statOldMarked', s.oldMarked);
+    setText('statDistinctUrls', s.distinctUrls);
+    setText('statUniqueUrls', s.uniqueUrls);
+    setText('statRepeatedUrls', s.repeatedUrls);
+  }
+  function renderDupGroups(){
+    const el = document.getElementById('dupGroups');
+    el.innerHTML = '';
+    if(!lastDupGroups.length){
+      el.innerHTML = '<div class="no-dups">No duplicates in the folders you selected.</div>';
+      return;
+    }
+    const cap = 150;
+    lastDupGroups.slice(0, cap).forEach(group => {
+      const g = document.createElement('div');
+      g.className = 'dup-group';
+      const folder = document.createElement('div');
+      folder.className = 'dup-path';
+      folder.style.marginBottom = '4px';
+      const modeLabel = group.mode === 'title' ? 'by title' : group.mode === 'both' ? 'by title and URL' : 'by URL';
+      folder.textContent = 'Folder: ' + group.folderTitle + '  ·  Mode: ' + modeLabel;
+      g.appendChild(folder);
+      group.items.forEach(node => {
+        const occ = document.createElement('div');
+        occ.className = 'dup-occ';
+        const info = document.createElement('span');
+        info.className = 'dup-path';
+        info.textContent = node.title + ' — ' + node.url;
+        let tag;
+        if(node.isCanonical){
+          tag = document.createElement('span');
+          tag.className = 'tag tag-keep';
+          tag.textContent = 'original';
+        } else {
+          tag = document.createElement('button');
+          tag.type = 'button';
+          tag.className = 'tag tag-clickable ' + (node.keepOverride ? 'tag-keep' : node.willBeRemoved ? 'tag-remove' : 'tag-protected');
+          tag.textContent = node.keepOverride ? 'kept manually' : node.willBeRemoved ? 'will be removed' : 'kept (folder not selected)';
+          tag.onclick = () => { node.keepOverride = !node.keepOverride; scheduleRender(); };
+        }
+        occ.append(info, tag);
+        g.appendChild(occ);
+      });
+      el.appendChild(g);
+    });
+    if(lastDupGroups.length > cap){
+      const note = document.createElement('div');
+      note.className = 'no-dups';
+      note.textContent = '… and ' + (lastDupGroups.length - cap) + ' more groups not shown.';
+      el.appendChild(note);
+    }
+  }
+
+  // ---------- Sorting ----------
+  // Applies to the view and the export alike, so the tree shows what will
+  // actually end up in the file.
+  function compareNodes(a, b){
+    if(opts.foldersFirst && a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    switch(opts.sortMode){
+      case 'title':
+        return a.title.localeCompare(b.title, 'de', {sensitivity:'base'});
+      case 'newest':
+        return (b.dateTs || 0) - (a.dateTs || 0);
+      case 'oldest':
+        return (a.dateTs || Infinity) - (b.dateTs || Infinity);
+      default:
+        return 0;
+    }
+  }
+  // Sorts a copy — the original order is kept so "Keep original order" can
+  // always take you back.
+  function sortedForDisplay(nodes, folderIncluded){
+    if(opts.sortMode === 'off' || !folderIncluded) return nodes;
+    return nodes.slice().sort(compareNodes);
+  }
+  function applySort(nodes){
+    for(const n of nodes){
+      if(n.type === 'folder'){
+        applySort(n.children);
+        if(n.include) n.children.sort(compareNodes);
+      }
+    }
+  }
+
+  // ---------- Export ----------
+  function cloneFiltered(nodes){
+    const result = [];
+    for(const n of nodes){
+      if(n.type === 'bookmark'){
+        if(n.willBeRemoved || n.crossFileRemoved) continue;
+        result.push({ type:'bookmark', title:n.title, attrs:n.attrs, dateTs:n.dateTs });
+      } else {
+        result.push({ type:'folder', title:n.title, attrs:n.attrs, include:n.include, dateTs:n.dateTs, children: cloneFiltered(n.children) });
+      }
+    }
+    return result;
+  }
+  function nodeAttrsString(node){
+    let out = '';
+    for(const k in node.attrs){
+      out += ' ' + k.toUpperCase() + '="' + escapeAttr(node.attrs[k]) + '"';
+    }
+    return out;
+  }
+  function nodesToHtml(nodes, indent){
+    let out = '';
+    for(const n of nodes){
+      if(n.type === 'folder'){
+        out += indent + '<DT><H3' + nodeAttrsString(n) + '>' + escapeHtml(n.title) + '</H3>\n';
+        out += indent + '<DL><p>\n';
+        out += nodesToHtml(n.children, indent + '    ');
+        out += indent + '</DL><p>\n';
+      } else {
+        out += indent + '<DT><A' + nodeAttrsString(n, true) + '>' + escapeHtml(n.title) + '</A>\n';
+      }
+    }
+    return out;
+  }
+  function pruneEmptyFolders(nodes){
+    const result = [];
+    for(const n of nodes){
+      if(n.type === 'bookmark'){ result.push(n); continue; }
+      const prunedChildren = pruneEmptyFolders(n.children);
+      if(prunedChildren.length === 0) continue;
+      n.children = prunedChildren;
+      result.push(n);
+    }
+    return result;
+  }
+  function exportFile(){
+    let cloned = cloneFiltered(tree);
+    if(opts.dropEmpty) cloned = pruneEmptyFolders(cloned);
+    if(opts.sortMode !== 'off') applySort(cloned);
+    const html = '<!DOCTYPE NETSCAPE-Bookmark-file-1>\n' +
+      '<!-- Cleaned with ' + APP_STAMP + ' on ' + new Date().toISOString().slice(0, 10) + ' -->\n' +
+      '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n' +
+      '<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n' +
+      nodesToHtml(cloned, '    ') +
+      '</DL><p>\n';
+    downloadBlob(html, 'text/html', 'bookmarks-cleaned.html');
+    showToast('✓ bookmarks-cleaned.html downloaded — import it in your browser to apply it.');
+  }
+  function collectRemainingFlat(){
+    const out = [];
+    (function walk(nodes, path){
+      for(const n of nodes){
+        if(n.type === 'bookmark'){
+          if(n.willBeRemoved || n.crossFileRemoved) continue;
+          out.push({ folder: path.join(' / ') || '(top level)', title: n.title, url: n.url });
+        } else {
+          walk(n.children, path.concat(n.title));
+        }
+      }
+    })(tree, []);
+    return out;
+  }
+  function exportCsv(){
+    const rows = collectRemainingFlat();
+    const esc = s => '"' + String(s).replace(/"/g, '""') + '"';
+    const csv = '# ' + APP_STAMP + '\n' + 'Folder,Title,URL\n' + rows.map(r => [esc(r.folder), esc(r.title), esc(r.url)].join(',')).join('\n');
+    downloadBlob(csv, 'text/csv', 'bookmarks-cleaned.csv');
+    showToast('✓ bookmarks-cleaned.csv downloaded.');
+  }
+  function exportJson(){
+    const payload = {
+      generator: APP.name,
+      version: APP.version,
+      author: APP.author,
+      repo: APP.repo,
+      exportedAt: new Date().toISOString(),
+      bookmarks: collectRemainingFlat()
+    };
+    downloadBlob(JSON.stringify(payload, null, 2), 'application/json', 'bookmarks-cleaned.json');
+    showToast('✓ bookmarks-cleaned.json downloaded.');
+  }
+  function downloadBlob(content, type, filename){
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  let toastTimer = null;
+  function showToast(msg){
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 5000);
+  }
+
+  // ---------- Browser instructions ----------
+  const browserInstructions = {
+    firefox: {
+      exp: ['Open <code>Library</code> (Ctrl+Shift+O, or menu → Bookmarks → Manage Bookmarks)', 'Menu <code>Import and Backup</code>', '<code>Export Bookmarks to HTML…</code>'],
+      imp: ['Open <code>Library</code> (Ctrl+Shift+O)', 'Menu <code>Import and Backup</code>', '<code>Import Bookmarks from HTML…</code> and pick the cleaned file']
+    },
+    chrome: {
+      exp: ['Open the bookmark manager (Ctrl+Shift+O, or <code>chrome://bookmarks</code>)', 'Click the three dots at the top right of the bookmark manager', '<code>Export bookmarks</code>'],
+      imp: ['Open the bookmark manager (Ctrl+Shift+O)', 'Three dots → <code>Import bookmarks</code>', 'Pick the cleaned file — it lands in a new folder']
+    },
+    edge: {
+      exp: ['Open Favorites (Ctrl+Shift+O)', 'Click the three dots (More options) at the top', '<code>Export favorites</code>'],
+      imp: ['Open Favorites (Ctrl+Shift+O)', 'Three dots → <code>Import favorites</code>', 'Pick the cleaned file']
+    },
+    brave: {
+      exp: ['Open the bookmark manager (Ctrl+Shift+O, or <code>brave://bookmarks</code>)', 'Click the three dots at the top right (Brave is Chromium-based, same menu as Chrome)', '<code>Export bookmarks</code>'],
+      imp: ['Open the bookmark manager (Ctrl+Shift+O)', 'Three dots → <code>Import bookmarks</code>', 'Pick the cleaned file']
+    },
+    tor: {
+      exp: ['Tor Browser is based on Firefox — same steps as there', 'Open <code>Library</code> (Ctrl+Shift+O)', 'Menu <code>Import and Backup</code> → <code>Export Bookmarks to HTML…</code>'],
+      imp: ['Open <code>Library</code> (Ctrl+Shift+O)', 'Menu <code>Import and Backup</code> → <code>Import Bookmarks from HTML…</code>', 'Pick the cleaned file']
+    },
+    other: {
+      exp: ['Opera, Vivaldi & co. are Chromium-based — open the bookmarks/favorites manager', 'Look for the three-dot menu in the manager', '<code>Export bookmarks</code> or an equivalent option'],
+      imp: ['Open the bookmarks/favorites manager', 'Menu → <code>Import bookmarks</code>', 'Pick the cleaned file']
+    }
+  };
+  function renderBrowserSteps(key){
+    const d = browserInstructions[key];
+    const el = document.getElementById('browserSteps');
+    el.innerHTML =
+      '<div class="step-group"><b>Export (before)</b><ol>' + d.exp.map(s => '<li>' + s + '</li>').join('') + '</ol></div>' +
+      '<div class="step-group"><b>Import (after, with the cleaned file)</b><ol>' + d.imp.map(s => '<li>' + s + '</li>').join('') + '</ol></div>';
+  }
+  document.querySelectorAll('.browser-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.browser-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderBrowserSteps(btn.dataset.b);
+    });
+  });
+  renderBrowserSteps('firefox');
+
+  // ---------- Tabs ----------
+  const tabButtons = Array.from(document.querySelectorAll('.tab'));
+  const tabPanels = Array.from(document.querySelectorAll('.tabpanel'));
+  function activateTab(name){
+    activeTab = name;
+    tabButtons.forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    tabPanels.forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
+    renderActiveTab();
+  }
+  tabButtons.forEach(btn => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+  function setCompareAvailable(available){
+    const tab = document.getElementById('tabCompare');
+    tab.classList.toggle('hidden', !available);
+    if(!available && tab.getAttribute('aria-selected') === 'true') activateTab('clean');
+  }
+
+  // ---------- Wiring ----------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const workspace = document.getElementById('workspace');
+  const errorMsg = document.getElementById('errorMsg');
+
+  function readFileAsText(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Could not read file: ' + file.name));
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
+
+  async function loadFiles(fileList){
+    const files = Array.from(fileList).filter(f => f && f.size >= 0);
+    if(!files.length) return;
+    openMenuId = null;
+    try{
+      const parsedPerFile = await Promise.all(files.map(async f => ({
+        name: f.name.replace(/\.html?$/i, ''),
+        items: parseBookmarksFile(await readFileAsText(f))
+      })));
+      if(parsedPerFile.length === 1){
+        tree = parsedPerFile[0].items;
+      } else {
+        tree = parsedPerFile.map(pf => ({
+          id: nextId(), type:'folder', title: 'From: ' + pf.name, attrs:{},
+          children: pf.items, include:true, expanded:true, dedupeMode:'off',
+          isFileRoot:true, fileLabel: pf.name
+        }));
+      }
+      // Large collections start collapsed: 200 folder rows appear instantly,
+      // 5000 bookmark rows stall the browser for seconds.
+      if(countBookmarks(tree) > 800){
+        (function collapse(nodes, depth){
+          for(const n of nodes){
+            if(n.type !== 'folder') continue;
+            n.expanded = depth === 0 && n.isFileRoot;
+            collapse(n.children, depth + 1);
+          }
+        })(tree, 0);
+      }
+      errorMsg.classList.add('hidden');
+      document.getElementById('landing').classList.add('hidden');
+      document.getElementById('topActions').classList.remove('hidden');
+      document.getElementById('ratioWrap').classList.remove('hidden');
+      workspace.classList.remove('hidden');
+      activateTab('clean');
+      renderNow();
+    }catch(e){
+      errorMsg.textContent = e.message;
+      errorMsg.classList.remove('hidden');
+    }
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => { if(e.target.files.length) loadFiles(e.target.files); });
+  ['dragover','dragenter'].forEach(evt => dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+  dropzone.addEventListener('drop', e => { if(e.dataTransfer.files.length) loadFiles(e.dataTransfer.files); });
+
+  document.getElementById('globalDedupeMode').addEventListener('change', e => {
+    const mode = e.target.value;
+    (function rec(nodes){ for(const n of nodes) if(n.type==='folder'){ n.dedupeMode = mode; rec(n.children); } })(tree);
+    scheduleRender();
+  });
+  document.getElementById('optNormalize').addEventListener('change', e => { opts.normalize = e.target.checked; scheduleRender(); });
+  document.getElementById('sortModeSelect').addEventListener('change', e => {
+    opts.sortMode = e.target.value;
+    const off = opts.sortMode === 'off';
+    document.getElementById('optFoldersFirstRow').classList.toggle('disabled', off);
+    document.getElementById('optFoldersFirst').disabled = off;
+    renderTree();
+  });
+  document.getElementById('optFoldersFirst').addEventListener('change', e => { opts.foldersFirst = e.target.checked; renderTree(); });
+  document.getElementById('ageFilterSelect').addEventListener('change', e => { viewState.ageThreshold = Number(e.target.value); scheduleRender(); });
+  document.getElementById('ageOnlyToggle').addEventListener('change', e => { viewState.ageOnly = e.target.checked; renderTree(); });
+
+  // Date range filter. "to" includes the chosen day, otherwise a range of a
+  // single day would always come back empty.
+  function readDateRange(){
+    const fromVal = document.getElementById('dateFrom').value;
+    const toVal = document.getElementById('dateTo').value;
+    viewState.dateFrom = fromVal ? Math.floor(new Date(fromVal + 'T00:00:00').getTime() / 1000) : null;
+    viewState.dateTo = toVal ? Math.floor(new Date(toVal + 'T23:59:59').getTime() / 1000) : null;
+    if(viewState.dateFrom !== null && viewState.dateTo !== null && viewState.dateFrom > viewState.dateTo){
+      showToast('The start date is after the end date — no entry can match that.');
+    }
+    renderTree();
+  }
+  document.getElementById('dateFrom').addEventListener('change', readDateRange);
+  document.getElementById('dateTo').addEventListener('change', readDateRange);
+  document.getElementById('dateKeepUndated').addEventListener('change', e => {
+    viewState.keepUndated = e.target.checked; renderTree();
+  });
+  document.getElementById('btnDateClear').addEventListener('click', () => {
+    document.getElementById('dateFrom').value = '';
+    document.getElementById('dateTo').value = '';
+    readDateRange();
+  });
+  document.getElementById('optDropEmpty').addEventListener('change', e => { opts.dropEmpty = e.target.checked; });
+
+  document.getElementById('btnAll').addEventListener('click', () => {
+    (function rec(nodes){ for(const n of nodes) if(n.type==='folder'){ n.include = true; rec(n.children); } })(tree);
+    scheduleRender();
+  });
+  document.getElementById('btnNone').addEventListener('click', () => {
+    (function rec(nodes){ for(const n of nodes) if(n.type==='folder'){ n.include = false; rec(n.children); } })(tree);
+    scheduleRender();
+  });
+
+  function setExpanded(value){
+    (function rec(nodes){ for(const n of nodes) if(n.type==='folder'){ n.expanded = value; rec(n.children); } })(tree);
+    renderTree();
+  }
+  function setSelectMode(on){
+    selectMode = on;
+    if(!on){ selectedIds.clear(); lastSelectedId = null; }
+    const btn = document.getElementById('btnSelectMode');
+    btn.classList.toggle('active-toggle', on);
+    btn.textContent = on ? 'Done selecting' : 'Select & move';
+    renderTree();
+  }
+  document.getElementById('collectRule').addEventListener('change', () => { collectNameTouched = false; updateCollectPreview(); });
+  document.getElementById('collectKeywords').addEventListener('input', scheduleCollectPreview);
+  document.getElementById('collectName').addEventListener('input', () => { collectNameTouched = true; });
+  document.getElementById('collectPerKeyword').addEventListener('change', updateCollectPreview);
+  document.getElementById('btnCollect').addEventListener('click', () => {
+    const rule = document.getElementById('collectRule').value;
+    const keywords = document.getElementById('collectKeywords').value;
+    const copy = document.getElementById('collectCopy').checked;
+    const perKeyword = document.getElementById('collectPerKeyword').checked;
+    const parent = currentCollectParent();
+    const where = parent ? '“' + parent.title + '”' : 'the top level';
+    const suffix = copy ? ' The originals stayed where they were.' : '';
+
+    if(rule === 'keywords'){
+      const groups = parseCollectGroups(keywords, perKeyword);
+      if(!groups.length){ showToast('Enter at least one keyword first.'); return; }
+      const buckets = matchGroups(groups).filter(b => b.items.length);
+      if(!buckets.length){ showToast('Nothing matched — no folder created.'); return; }
+      // In move mode, gather all matches first and create afterwards —
+      // otherwise the second folder would move entries the first one took.
+      const created = buckets.map(b => createCollectionFolder(
+        groups.length === 1 ? (document.getElementById('collectName').value.trim() || b.name) : b.name,
+        b.items, copy, parent));
+      const total = buckets.reduce((a, b) => a + b.items.length, 0);
+      collectNameTouched = false;
+      showToast(created.length === 1
+        ? '“' + created[0].title + '” created in ' + where + ' with ' + total + ' entries.' + suffix
+        : created.length + ' folders created in ' + where + ' with ' + total + ' entries in total.' + suffix);
+      scheduleRender();
+      return;
+    }
+
+    const matches = collectMatches(rule, keywords);
+    if(!matches.length){ showToast('Nothing matched — no folder created.'); return; }
+    const name = document.getElementById('collectName').value.trim() || suggestedCollectName(rule, keywords) || 'Collected';
+    const folder = createCollectionFolder(name, matches, copy, parent);
+    collectNameTouched = false;
+    showToast('“' + folder.title + '” created in ' + where + ' with ' + matches.length
+      + (matches.length === 1 ? ' entry.' : ' entries.') + suffix);
+    scheduleRender();
+  });
+
+  document.getElementById('btnSelectMode').addEventListener('click', () => setSelectMode(!selectMode));
+  document.getElementById('btnSelClear').addEventListener('click', () => {
+    selectedIds.clear(); lastSelectedId = null; renderTree();
+  });
+  document.getElementById('btnSelVisible').addEventListener('click', () => {
+    let added = 0;
+    (function walk(nodes){
+      for(const n of nodes){
+        if(n.type === 'folder'){ walk(n.children); }
+        else if(renderOrder.includes(n.id)){ selectedIds.add(n.id); added++; }
+      }
+    })(tree);
+    if(!added) showToast('No bookmarks are currently shown.');
+    renderTree();
+  });
+
+  document.getElementById('btnExpand').addEventListener('click', () => setExpanded(true));
+  document.getElementById('btnCollapse').addEventListener('click', () => setExpanded(false));
+
+  document.getElementById('btnExport').addEventListener('click', exportFile);
+  document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
+  document.getElementById('btnExportJson').addEventListener('click', exportJson);
+  document.getElementById('btnCompareToggle').addEventListener('click', () => {
+    viewState.compareShowDiffOnly = !viewState.compareShowDiffOnly;
+    const btn = document.getElementById('btnCompareToggle');
+    btn.textContent = viewState.compareShowDiffOnly ? 'Show overlaps only' : 'Show differences only';
+    btn.classList.toggle('active-toggle', viewState.compareShowDiffOnly);
+    renderFileCompare();
+    dirty.compare = false;
+  });
+
+  // ---------- Search & filters ----------
+  // Filtering does not run on every keystroke but after a short pause — on
+  // large collections that is the difference between smooth and stuttering
+  // typing.
+  let searchTimer = null;
+  document.getElementById('searchInput').addEventListener('input', e => {
+    const value = e.target.value.trim().toLowerCase();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if(value === viewState.query) return;
+      viewState.query = value;
+      renderTree();
+    }, 140);
+  });
+  document.getElementById('failedOnlyToggle').addEventListener('change', e => {
+    viewState.failedOnly = e.target.checked;
+    renderTree();
+  });
+  // Escape closes an open row editor, or clears the search.
+  document.addEventListener('keydown', e => {
+    if(e.key !== 'Escape') return;
+    if(openMenuId !== null){ openMenuId = null; renderTree(); return; }
+    if(selectMode && selectedIds.size){ selectedIds.clear(); lastSelectedId = null; renderTree(); return; }
+    if(selectMode){ setSelectMode(false); return; }
+    const input = document.getElementById('searchInput');
+    if(document.activeElement === input && input.value){
+      input.value = ''; viewState.query = ''; renderTree();
+    }
+  });
+
+  // ---------- Dead link checking ----------
+  function collectCheckableLinks(){
+    const out = [];
+    (function collect(nodes){
+      for(const n of nodes){
+        if(n.type === 'bookmark'){ if(/^https?:\/\//i.test(n.url)) out.push(n); }
+        else collect(n.children);
+      }
+    })(tree);
+    return out;
+  }
+  async function checkLinks(){
+    const btn = document.getElementById('btnCheckLinks');
+    if(linkCheckRunning){ linkCheckCancel = true; btn.textContent = 'Stopping…'; return; }
+    const list = collectCheckableLinks();
+    if(!list.length){ showToast('Nothing to check — no http(s) links in this file.'); return; }
+    linkCheckRunning = true;
+    linkCheckCancel = false;
+    btn.textContent = 'Stop';
+    btn.classList.add('active-toggle');
+    const progress = document.getElementById('linkProgress');
+    const fill = document.getElementById('linkProgressFill');
+    const text = document.getElementById('linkProgressText');
+    progress.classList.remove('hidden');
+    list.forEach(b => { b.linkStatus = 'checking'; });
+    renderTree();
+    let done = 0;
+    const total = list.length;
+    const concurrency = 12;
+    let idx = 0;
+    async function worker(){
+      while(idx < list.length && !linkCheckCancel){
+        const bm = list[idx++];
+        try{
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 7000);
+          await fetch(bm.url, { mode:'no-cors', cache:'no-store', signal: controller.signal });
+          clearTimeout(timer);
+          bm.linkStatus = 'ok';
+        }catch(e){
+          bm.linkStatus = 'failed';
+        }
+        done++;
+        fill.style.width = Math.round((done/total)*100) + '%';
+        text.textContent = done + ' / ' + total;
+        scheduleRender();
+      }
+    }
+    await Promise.all(Array.from({length: Math.min(concurrency, list.length)}, worker));
+    if(linkCheckCancel){
+      list.forEach(b => { if(b.linkStatus === 'checking') b.linkStatus = null; });
+      showToast('Link check stopped after ' + done + ' of ' + total + ' links.');
+    }
+    linkCheckRunning = false;
+    linkCheckCancel = false;
+    btn.textContent = 'Check links';
+    btn.classList.remove('active-toggle');
+    scheduleRender();
+  }
+  document.getElementById('btnCheckLinks').addEventListener('click', checkLinks);
+  document.getElementById('btnReset').addEventListener('click', () => location.reload());
+
+})();
+</script>
+</body>
+</html>
