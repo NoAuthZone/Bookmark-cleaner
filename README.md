@@ -1,147 +1,202 @@
+<div align="center">
+
 # Bookmark Cleaner
 
-A single HTML file that cleans up browser bookmark exports. Drop in the HTML export from any
-browser, decide what gets removed, and download a cleaned file you can import again.
+**Clean up, de-duplicate and sort your browser bookmarks — entirely offline, in a single HTML file.**
 
-Everything runs locally in your browser. No upload, no server, no build step, no dependencies —
-open the file and it works, including offline.
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/NoAuthZone/bookmark-cleaner/releases)
+[![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](#)
+[![Offline](https://img.shields.io/badge/runs-100%25%20offline-success)](#privacy)
+[![Single file](https://img.shields.io/badge/build%20step-none-lightgrey)](#)
 
-Built by **NoAuthZone**.
+</div>
 
-## Why
+---
 
-Bookmark collections rot. The same link ends up in three folders, entries from 2011 point at
-domains that no longer exist, and folder structures grow without anyone maintaining them.
-Browsers offer no tooling for this beyond deleting entries one at a time.
+Export your bookmarks, drop the file onto the tool, decide what should happen, download a cleaned file, import it back. No install, no server, no account, no upload — just one HTML file you open in your browser.
 
-This tool works on the universal `NETSCAPE-Bookmark-file-1` HTML format that every major browser
-exports, so it does not care which browser the file came from — and it never touches your live
-bookmarks. You import the result yourself, when you are ready.
+> [!NOTE]
+> Your original export is never modified. The tool works on a copy in memory and writes a new file when you ask it to.
+
+## Table of contents
+
+- [Quick start](#quick-start)
+- [Features](#features)
+- [Privacy](#privacy)
+- [Browser support](#browser-support)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Quick start
 
-1. Export your bookmarks from your browser as HTML.
-2. Open `bookmark-cleaner.html` in any modern browser (double-click is enough).
-3. Drop the export onto the page.
-4. Pick folders, adjust the options, download the cleaned file.
-5. Import the cleaned file back into your browser.
-
-The page itself lists the export and import steps for Firefox, Chrome, Edge, Brave, Tor Browser
-and Opera/Vivaldi.
+1. **Download** [`Bookmark-Cleaner.html`](https://github.com/NoAuthZone/bookmark-cleaner) and open it in your browser (double-click — no web server needed).
+2. **Export your bookmarks.** The tool has step-by-step instructions built in for Firefox, Chrome, Edge, Brave, Tor Browser and other Chromium-based browsers.
+3. **Drop the exported `bookmarks.html`** onto the page.
+4. **Pick your options** and review the tree.
+5. **Download the cleaned HTML** and import it back into your browser.
 
 ## Features
 
-### Duplicates
+<details open>
+<summary><b>Clean up</b> — duplicates, sorting, editing</summary>
 
-- Duplicates are detected **per folder**, among direct siblings only — subfolders are separate.
-- Comparison mode per folder: by URL, by title, by both, or off. A global default sets all
-  folders at once; individual folders can differ.
-- Optional fuzzy URL matching that ignores `http`/`https`, a leading `www.` and a trailing slash.
-- The first entry of a group is kept; click any duplicate's tag to keep that copy instead.
-- Global link statistics: how many distinct links exist, how many appear exactly once, and how
-  many have copies somewhere in the tree.
+<br>
 
-### Structure
+| Feature | What it does |
+|---|---|
+| Per-folder duplicate detection | Compare by URL, title, both, or off. Set it globally, override individual folders. |
+| Fuzzy URL matching | Optionally ignore `http`/`https`, a leading `www.` and a trailing slash when comparing. |
+| Folder selection | Only checked folders get cleaned and sorted — unchecked ones pass through untouched. |
+| Sorting | Original order, title A–Z, or by date (newest/oldest first), optionally subfolders first. |
+| Empty folder removal | Folders left with nothing after cleanup can be dropped from the export. |
+| Manual editing | Rename a bookmark, fix its link, edit its tags, or move it to another folder. |
+| Select & move | Pick several entries and relocate them together. |
+| Search & bulk remove | Filter the tree by title, link or tag — then remove every match at once. |
 
-- Folder tree with per-folder include/exclude. Unchecked folders are left completely untouched.
-- Sort selected folders by title, by newest, or by oldest — applied both in the tree and in the
-  export, so what you see is what you get.
-- Subfolders before bookmarks, and dropping folders that end up empty, are separate switches.
+</details>
 
-### Editing
+<details>
+<summary><b>Date &amp; age</b> — find the stale stuff</summary>
 
-- Edit a bookmark's **title and its link**, or move it to another folder.
-- **Select & move**: tick as many bookmarks and folders as you like — with shift-click for
-  ranges — and move them together. Folders take their contents along; a folder cannot be moved
-  into itself.
+<br>
 
-### Collecting into new folders
+- **Date range filter** — show only entries within a given period, with an option to keep undated entries visible.
+- **Age marking** — flag everything older than 1, 2 or 5 years, based on the last change date or, where the export has none, the date added.
 
-Rule-based collection that creates new folders from entries scattered across the tree:
+</details>
 
-- **By keyword**, one folder per line:
+<details>
+<summary><b>Link checking</b> — find dead links</summary>
 
-  ```
-  Karriere: karriere, jobs, bewerbung
-  Rezepte: rezept, kochen, backen
-  python
-  ```
+<br>
 
-  `Name: term, term` names the folder explicitly; a bare list takes its name from the first term.
-  An entry lands in the first line it matches, which makes the line order your priority.
-  "One folder per keyword" splits unnamed lines so every term gets its own folder.
-- **Links that appear only once** / **links that appear more than once** — counted across the
-  whole tree, not per folder.
-- **Older than the age filter** and **unreachable links**.
+- **Checked per address, not per copy.** Each distinct URL — including its full path, not just the domain — is fetched once; identical copies inherit the verdict.
+- **Two distinct outcomes.** `unreachable` for requests that fail outright, `no answer` for requests that time out after 10 seconds, so slow sites are not written off as dead.
+- **Resumable.** "Only unchecked links" lets a second run pick up what is new or was interrupted.
 
-New folders can be created at the top level or inside any existing folder, and they can either
-move the entries or copy them.
+> [!WARNING]
+> Browsers block the real HTTP status code (CORS), so a failed request is a **hint**, not proof that a page is gone. Verify before deleting.
 
-### Dates and age
+</details>
 
-- Every row shows a date, taken from `LAST_MODIFIED` if the export has one, otherwise `ADD_DATE`.
-- Filter the tree by a date range, with a switch for whether undated entries stay visible.
-- Mark entries older than 1, 2 or 5 years — the date column turns amber and shows the age.
-- Sort by date in either direction.
+<details>
+<summary><b>Insights</b> — see what your collection actually looks like</summary>
 
-### Link check
+<br>
 
-An optional pass that requests every `http(s)` link and flags the ones that fail. It is
-cancellable and shows progress.
+**Overview** — totals, distinct links, duplicate groups, what will be removed, empty folders and link-check results at a glance.
 
-> **Caveat:** browsers block the real status code for cross-origin requests (CORS), so
-> "unreachable" means the request failed — not that the page is gone. Treat it as a hint, not a
-> verdict.
+**Top domains** and **Top links (full URL)** — where your bookmarks actually point, ranked by frequency. The link list groups by host *and* path/query, not just the domain.
 
-### Multiple files
+Both lists support three filter modes plus a free-text filter:
 
-Load several exports at once and each becomes its own root folder. A comparison view then shows,
-for folders with matching names, which entries exist in which file and where they overlap.
+| Mode | Example use |
+|---|---|
+| `Show top…` | The 100 most frequent links |
+| `Occurs…` | Exactly once · twice and up · between 2 and 5 times |
+| `Percentile…` | The 30 %–40 % slice of the ranked list |
+| Text filter | Narrow either list to a specific site, e.g. `heise` |
 
-### Export
+From either list you can **remove every bookmark** of a domain or link in one click, or **turn the current filter result into a new folder** (copying by default, so originals stay put).
 
-- **HTML** in the original bookmark format — the only one a browser can import.
-- **CSV** and **JSON** as a flat list of everything that survives the cleanup.
+</details>
 
-## Performance
+<details>
+<summary><b>Collect into a new folder</b> — regroup in bulk</summary>
 
-Tested against a synthetic export with 4,800 bookmarks in 200 folders:
+<br>
 
-- Collections above 800 bookmarks start collapsed, so the initial view builds ~40 rows instead
-  of ~5,000. `Expand` / `Collapse` open and close everything.
-- The tree never draws more than 1,200 filtered or 4,000 unfiltered rows; a note reports the
-  rest. Undrawn entries are still counted, cleaned and exported.
-- Heavy panels (duplicate list, domain statistics, file comparison) are only computed when their
-  tab is open.
-- Analysis and rendering are coalesced into one pass per animation frame; search input is
-  debounced; URL normalisation and folder counts are cached.
+Group entries into new folders **by keyword** (one folder per line, with optional explicit names) or **by rule**:
 
-Toggling a folder went from roughly 2,000 ms to under 200 ms on that file.
+- links that appear only once
+- links that appear more than once
+- entries older than the age filter
+- links that failed the check
+
+Choose where the folder is created and whether entries are moved or copied.
+
+</details>
+
+<details>
+<summary><b>File comparison &amp; exports</b></summary>
+
+<br>
+
+**File comparison** — load a second export to compare two files and see what is only in one of them.
+
+**Exports:**
+
+| Format | Purpose |
+|---|---|
+| HTML | The cleaned bookmark file, importable back into any browser |
+| CSV | Flat list of everything that survives the cleanup |
+| JSON | Same, for scripting and further processing |
+
+</details>
+
+<details>
+<summary><b>Interface</b></summary>
+
+<br>
+
+- **Dark and light theme** — dark by default, toggled from the top bar, remembered between sessions.
+- **Collapsible option groups** — every closed group shows a one-line recap of its current setting, so nothing is hidden without a trace.
+- **Remembered settings** — theme, Insights filters and which option groups are open persist across reloads.
+- **Tag support** — bookmark tags from Firefox exports are shown, searchable, editable and preserved on export.
+
+</details>
 
 ## Privacy
 
-- No network requests, except the optional link check, which contacts exactly the sites you
-  bookmarked.
-- No storage, no cookies, no telemetry, no external fonts or scripts.
-- Your bookmarks never leave the page. Closing the tab discards everything.
+Everything runs locally in the page. Your bookmark file is read in the browser and **never uploaded**.
+
+The only outgoing network requests are the ones the link checker makes to the sites you bookmarked — and only when you click **Check links**.
+
+Theme choice, Insights filter settings and which option groups are open are stored in your browser's `localStorage`. Nothing else is persisted, and nothing is sent anywhere.
 
 ## Browser support
 
-Any current Chromium-based browser, Firefox, or Safari. The tool uses standard DOM APIs,
-`DOMParser`, `Blob` downloads and `AbortController`.
+Any current desktop browser: Firefox, Chrome, Edge, Brave, Tor Browser, Opera, Vivaldi, Safari. The layout adapts to narrow screens, but the tool is most comfortable in a desktop-sized window.
 
-## Development
+## FAQ
 
-There is no build step and no dependency to install. `bookmark-cleaner.html` contains the markup,
-styles and script, and can be edited directly.
+<details>
+<summary>Does it modify my original export?</summary>
+<br>
+No. The file you drop in is read into memory and never written to. Cleaning produces a new file that you download explicitly.
+</details>
 
-## Known limitations
+<details>
+<summary>Are Firefox tags preserved?</summary>
+<br>
+Yes. Tags are parsed, displayed, searchable, editable in the tool, and written back unchanged on export. Chrome and Edge exports have no tags to begin with.
+</details>
 
-- The link check cannot distinguish "site is down" from "site blocks cross-origin requests".
-- Duplicate detection is deliberately scoped to one folder at a time. To catch duplicates across
-  the whole tree, collect the repeated links into one folder first, then let the duplicate check
-  run inside it.
-- Favicons (`ICON` attributes) are preserved but never displayed.
-- Very large exports are rendered with a row cap rather than a virtualised list.
+<details>
+<summary>Does the link checker check full URLs or just domains?</summary>
+<br>
+Full URLs, including path and query. A deleted subpage on a live domain is detected — within the limits CORS imposes.
+</details>
 
+<details>
+<summary>Why does a site I know is fine show up as unreachable?</summary>
+<br>
+Browsers restrict what a page may learn about cross-origin requests. Some sites refuse the kind of request the checker makes, even though they work fine in a normal tab. Treat the result as a shortlist to review, not a verdict.
+</details>
 
+<details>
+<summary>Can I run it from a USB stick / air-gapped machine?</summary>
+<br>
+Yes. It is one self-contained HTML file with no external resources. Only the link checker needs a network connection, and it is optional.
+</details>
+
+## Contributing
+
+Issues and pull requests are welcome. Since the project is a single self-contained HTML file, keep changes dependency-free and make sure the tool still works when opened directly from disk (`file://`).
+
+---
+
+<div align="center">
+Built by <b>NoAuthZone</b> · Runs entirely offline · Nothing leaves your browser
+</div>
