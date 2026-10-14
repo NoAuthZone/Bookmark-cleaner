@@ -4,7 +4,7 @@
 
 **Clean up, de-duplicate and sort your browser bookmarks — entirely offline, in a single HTML file.**
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/NoAuthZone/bookmark-cleaner/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/NoAuthZone/bookmark-cleaner/releases)
 [![No dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](#)
 [![Offline](https://img.shields.io/badge/runs-100%25%20offline-success)](#privacy)
 [![Single file](https://img.shields.io/badge/build%20step-none-lightgrey)](#)
